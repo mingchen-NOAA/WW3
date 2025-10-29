@@ -1,0 +1,110 @@
+#!/bin/sh
+ 
+#SBATCH -n 24
+##SBATCH --cpus-per-task=6
+#SBATCH -q batch
+#SBATCH -t 08:00:00
+#SBATCH -A marine-cpu
+#SBATCH -J ww3_regtest_13
+#SBATCH -o my_matrix.out
+ 
+  cd /scratch4/NCEPDEV/marine/Ming.Chen/ww3/ursa/ww3RWPS/regtests
+ 
+  module purge
+  module use /contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.2.1/install/modulefiles/Core
+  module use /contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.2.1/install/modulefiles/intel-oneapi-mpi/2021.13-haww6b3/gcc/12.4.0
+  module load stack-oneapi/2024.2.1
+  module load stack-intel-oneapi-mpi/2021.13
+  module load cmake/3.27.9
+  module load libpng/1.6.37
+  module load zlib/1.2.13
+  module load jasper/2.0.32
+  module load hdf5/1.14.3
+  module load netcdf-c/4.9.2
+  module load netcdf-fortran/4.6.1
+  module load bacio/2.4.1
+  module load g2/3.5.1
+  module load w3emc/2.10.0
+  module load esmf/8.8.0
+  module load scotch/7.0.4
+  export METIS_PATH=/scratch4/NCEPDEV/marine/Ming.Chen/apps/parmetis/parmetis_intel/ursa/parmetis-4.0.3/install
+  export path_build_root=/scratch4/NCEPDEV/marine/Ming.Chen/ww3/ursa/ww3RWPS/regtests/buildmatrix13
+  [[ -d ${path_build_root} ]] && rm -rf ${path_build_root}
+  echo ' '
+  echo '             **********************************************'
+  echo '           ***  WAVEWATCH III matrix of regression tests  ***'
+  echo '             **********************************************'
+  echo ' '
+  echo '    Tests for single CPU codes                       : y'
+  echo '    Tests for multiple CPU codes (MPI)               : y'
+  echo '    Tests for multiple CPU codes (OMP)               : y'
+  echo '    Tests for threaded multiple CPU codes (MPI/OMPH) : y'
+  echo ' '
+  echo '      1D pure propagation tests          : y'
+  echo '      2D pure propagation tests          : y'
+  echo '      Growth curves (time)               : y'
+  echo '      Growth curves (fetch)              : y'
+  echo '      Shallow water tests                : y'
+  echo '      Unstructured grid tests            : y'
+  echo '      SMC grid tests                     : y'
+  echo '      Rotated pole tests                 : y'
+  echo '      Hurricane with one moving grid     : y'
+  echo '      Mud/Ice and wave interaction tests : y'
+  echo '      Second harmonic generation tests   : y'
+  echo '      Multi 01 (wet and dry)             : y'
+  echo '      Multi 02 (basic nesting)           : y'
+  echo '      Multi 03 (nesting and overlap)     : y'
+  echo '      Multi 04 (swell on mount/current)  : y'
+  echo '      Multi 05 (hurricane 3 moving grds) : y'
+  echo '      Multi 06 (curv. + reg. grds)       : y'
+  echo '      Multi 07 (unstr. + reg. grds)      : y'
+  echo '      Multi 08 (with ice)                : y'
+  echo '      Multi 09 (SMC multi grid)          : y'
+  echo '      Assim Update of the restart file   : y'
+  echo '      OASIS coupling                     : y'
+  echo '      Calendar type                      : y'
+  echo '      ESMF Coupling                      : n'
+  echo '      The Unified Forecast System        : y'
+  echo '      grib file field output             : y'
+  echo '      Restart Reproducibility            : y'
+  echo '      MPI task Reproducibility           : y'
+  echo '      Thread Reproducibility             : y'
+  echo '      Configurable netCDF generation     : y'
+  echo ' '
+
+#./bin/run_cmake_test -b slurm -o all -S -T -s MPI -w work_c -m grdset_c -f -p srun -n 24 ../model ww3_ufs1.1
+#./bin/run_cmake_test -b slurm -o all -S -T -s MPI -w work_c_npl -m grdset_c -f -p srun -n 12 ../model ww3_ufs1.1
+#./bin/test.comp ww3_ufs1.1 work_c work_c_npl
+#./bin/run_cmake_test -b slurm -o all -S -T -s MPI_OMPH -w work_c_nth -m grdset_c -f -p srun -n 4 -t 6 ../model ww3_ufs1.1
+#./bin/test.comp ww3_ufs1.1 work_c work_c_nth
+#mkdir -p ww3_ufs1.1/work_d
+#cp ww3_ufs1.1/work_c/20210401.030000.restart.glo_5deg ww3_ufs1.1/work_d/restart.glo_5deg
+#./bin/run_cmake_test -b slurm -o all -S -T -s MPI -w work_d -m grdset_d -f -p srun -n 24 ../model ww3_ufs1.1
+#./bin/test.comp ww3_ufs1.1 work_c work_d
+
+#./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr -w work_unstr_a -g a -f -p srun -n 24 ../model ww3_ufs1.1
+
+#
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr -w work_unstr_b -g b -f -p srun -n 24 ../model ww3_ufs1.1
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr -w work_unstr_b_npl -g b -f -p srun -n 12 ../model ww3_ufs1.1
+./bin/test.comp ww3_ufs1.1 work_unstr_b work_unstr_b_npl
+mkdir -p  ww3_ufs1.1/work_unstr_d
+ln -sf ../work_unstr_b/20210401.030000.restart.ww3 ww3_ufs1.1/work_unstr_d/restart.ww3
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr_rst -w work_unstr_d -g b -f -p srun -n 24 ../model ww3_ufs1.1
+./bin/test.comp ww3_ufs1.1 work_unstr_b work_unstr_d
+
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr -w work_unstr_c -g c -f -p srun -n 24 ../model ww3_ufs1.1
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr -w work_unstr_c_npl -g c -f -p srun -n 12 ../model ww3_ufs1.1
+./bin/test.comp ww3_ufs1.1 work_unstr_c work_unstr_c_npl
+mkdir -p  ww3_ufs1.1/work_unstr_e
+ln -sf ../work_unstr_c/20210401.030000.restart.ww3 ww3_ufs1.1/work_unstr_e/restart.ww3
+./bin/run_cmake_test -b slurm -o all -S -T -s MPI -s PDLIB -i input_unstr_rst -w work_unstr_e -g c -f -p srun -n 24 ../model ww3_ufs1.1
+./bin/test.comp ww3_ufs1.1 work_unstr_c work_unstr_e
+#
+
+  [[ -d ${path_build_root} ]] && rm -rf ${path_build_root}*
+  echo ' '
+  echo '     **************************************************************'
+  echo '     *  end of WAVEWATCH III matrix13 of regression tests  *'
+  echo '     **************************************************************'
+  echo ' '
