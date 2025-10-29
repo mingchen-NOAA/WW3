@@ -2170,11 +2170,38 @@
  # Domain Decomposition Explicit
   fi
   if [ "$ufs" = 'y' ] && [ "$pdlib" = 'y' ] && [ "$dist" = 'y' ]; then
-     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_a -g a -f -p $mpi -n $np $ww3 ww3_ufs1.1"   >> matrix.body
+     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_a -g a -f -p $mpi -n $np $ww3 ww3_ufs1.1"                   >> matrix.body
  # Domain Decomposition Block Explicit
-     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_b -g b -f -p $mpi -n $np $ww3 ww3_ufs1.1"   >> matrix.body
+     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_b -g b -f -p $mpi -n $np $ww3 ww3_ufs1.1"                   >> matrix.body
+      if [ "$npl_b4b" = 'y' ]
+      then
+         halfnp=$(($np / 2))
+         echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_b_npl -g b -f -p $mpi -n $halfnp $ww3 ww3_ufs1.1"       >> matrix.body
+         echo "./bin/test.comp ww3_ufs1.1 work_unstr_b work_unstr_b_npl"                                                  >> matrix.body
+      fi
+      if [ "$rstrt_b4b" = 'y' ]
+      then
+          echo "mkdir -p ww3_ufs1.1/work_unstr_d"                                                                         >> matrix.body
+          echo "ln -sf ../work_unstr_b/20210401.030000.restart.ww3 ww3_ufs1.1/work_unstr_d/restart.ww3"                   >> matrix.body
+          echo "$rtst -s MPI -s PDLIB -i input_unstr_rst -w work_unstr_d -g b -f -p $mpi -n $np $ww3 ww3_ufs1.1"          >> matrix.body
+          echo "./bin/test.comp ww3_ufs1.1 work_unstr_b work_unstr_d"                                                     >> matrix.body
+      fi
  # Domain Decomposition Implicit
-     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_c -g c -f -p $mpi -n $np $ww3 ww3_ufs1.1"   >> matrix.body
+     echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_c -g c -f -p $mpi -n $np $ww3 ww3_ufs1.1"                   >> matrix.body
+      if [ "$npl_b4b" = 'y' ]
+      then
+         halfnp=$(($np / 2))
+         echo "$rtst -s MPI -s PDLIB -i input_unstr -w work_unstr_c_npl -g c -f -p $mpi -n $halfnp $ww3 ww3_ufs1.1"       >> matrix.body
+         echo "./bin/test.comp ww3_ufs1.1 work_unstr_c work_unstr_c_npl"                                                  >> matrix.body
+      fi
+      if [ "$rstrt_b4b" = 'y' ]
+      then
+          echo "mkdir -p ww3_ufs1.1/work_unstr_e"                                                                         >> matrix.body
+          echo "ln -sf ../work_unstr_c/20210401.030000.restart.ww3 ww3_ufs1.1/work_unstr_e/restart.ww3"                   >> matrix.body
+          echo "$rtst -s MPI -s PDLIB -i input_unstr_rst -w work_unstr_e -g c -f -p $mpi -n $np $ww3 ww3_ufs1.1"          >> matrix.body
+          echo "./bin/test.comp ww3_ufs1.1 work_unstr_c work_unstr_e"                                                     >> matrix.body
+      fi
+
   fi
 
  #Test of UFS applications with ww3_multi_esmf and grib2 output
