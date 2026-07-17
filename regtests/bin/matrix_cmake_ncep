@@ -22,29 +22,49 @@ usage ()
 {
   cat 2>&1 << EOF
 
-  Usage: $myname model_dir compiler
+  Usage: $myname model_dir [compiler] [-debug]
   Required:
     model_dir : path to model dir of WW3 source
   Optional:
     compiler : intel (default) or gnu
+    -debug   : build regression tests with CMAKE_BUILD_TYPE=Debug
 EOF
 }
 
 # Get required arguments
-  if [ ! $# = 0 ]
+  if [ $# -eq 0 ]
   then
-    main_dir="$1" ; shift
-    if [ ! $# = 0 ]
-    then
-      compiler="$1"; shift
-    else
-      compiler='intel'
-    fi
-  else
     usage
     exit 1
   fi
 
+  main_dir="$1"
+  shift
+
+  compiler='intel'
+  debug='n'
+
+  while [ $# -gt 0 ]
+  do
+    case "$1" in
+      intel|gnu)
+        compiler="$1"
+        ;;
+      -debug|--debug)
+        debug='y'
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "ERROR: Unknown option or compiler: $1" >&2
+        usage
+        exit 1
+        ;;
+    esac
+    shift
+  done
 
 
 # Convert main_dir to absolute path
@@ -246,6 +266,11 @@ EOF
   echo "  export METIS_PATH=${metispath}"                   >> matrix.head
   echo "  export path_build_root=$(dirname $main_dir)/regtests/buildmatrix" >> matrix.head
   echo '  [[ -d ${path_build_root} ]] && rm -rf ${path_build_root}'         >> matrix.head
+  echo ' '
+  if [ "$debug" = 'y' ]
+  then
+    echo '  export CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Debug"' >> matrix.head
+  fi
   echo ' '
 
   if [ "$batchq" = 'slurm' ]
