@@ -269,7 +269,7 @@ EOF
   echo ' '
   if [ "$debug" = 'y' ]
   then
-    echo '  export CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Debug"' >> matrix.head
+    echo '  export CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug"' >> matrix.head
   fi
   echo ' '
 
