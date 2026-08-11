@@ -558,9 +558,15 @@ CONTAINS
     USE W3PARALL, only : PRINT_MY_TIME
 #endif
 #ifdef W3_PIO
+    use wav_restart_mod , only : write_restart
+    use wav_history_mod , only : write_history
+    use w3odatmd        , only : histwr, rstwr, user_restfname
+    use w3timemd        , only : set_user_timestring
     USE W3ODATMD,         ONLY : FNMRST
     USE W3GDATMD,         ONLY : MAPST2
 #endif
+    use w3odatmd        , only : use_historync, use_restartnc
+    use w3odatmd        , only : logfile_is_assigned, verboselog
 #if defined(W3_T) || defined(W3_REFRX)
     USE W3GDATMD,  ONLY : NSEA
 #endif
@@ -578,7 +584,7 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
     !/
-    INTEGER, INTENT(IN)           :: IMOD, TEND(2),ODAT(35)
+    INTEGER, INTENT(IN)           :: IMOD, TEND(2),ODAT(40)
     LOGICAL, INTENT(IN), OPTIONAL :: STAMP, NO_OUT
 #ifdef W3_OASIS
     type(MPI_COMM), INTENT(IN), OPTIONAL :: ID_LCOMM
@@ -645,10 +651,13 @@ CONTAINS
     !
     REAL, ALLOCATABLE       :: TAUWX(:), TAUWY(:)
     !
-    LOGICAL                 :: FLACT, FLZERO, FLFRST, FLMAP, TSTAMP,   &
-                               SKIP_O, FLAG_O, FLDDIR, READBC,         &
-                               FLOUTG, FLPFLD, FLPART, LOCAL, FLOUTG2
-    !
+    LOGICAL                 :: FLACT, FLZERO, FLFRST, FLMAP, TSTAMP,&
+         SKIP_O, FLAG_O, FLDDIR, READBC,      &
+         FLOUTG = .false., FLPFLD,            &
+         FLPART, LOCAL, FLOUTG2 = .false.
+#ifdef W3_DEBUGRUN
+    LOGICAL                 :: FLAG0 = .FALSE.
+#endif
 #ifdef W3_MPI
     LOGICAL                 :: FLGMPI(0:8)
 #endif
@@ -679,7 +688,11 @@ CONTAINS
     REAL, ALLOCATABLE       :: BACSPEC(:)
     REAL                    :: BACANGL
 #endif
-    integer :: memunit
+    integer            :: memunit
+#ifdef W3_PIO
+    character(len=16)  :: user_timestring    !YYYY-MM-DD-SSSSS
+    character(len=256) :: fname
+#endif
     !/ ------------------------------------------------------------------- /
     ! 0.  Initializations
     !
@@ -746,7 +759,9 @@ CONTAINS
       FLPFLD = FLPFLD .OR. FLOGRD(4,J) .OR. FLOGR2(4,J)
     END DO
     !
-    IF ( IAPROC .EQ. NAPLOG ) BACKSPACE ( NDSO )
+    if (.not. logfile_is_assigned) then
+      IF ( IAPROC .EQ. NAPLOG ) BACKSPACE ( NDSO )
+    end if
     !
     IF ( FLCOLD ) THEN
       DTDYN = 0.
@@ -1650,7 +1665,7 @@ CONTAINS
               WRITE(740+IAPROC,*) '     SHAVETOT=', SHAVETOT(JSEA)
               FLUSH(740+IAPROC)
 #endif
-            ENDIF 
+            ENDIF
           END DO ! JSEA
         END IF ! PDLIB
 #endif
@@ -2397,7 +2412,7 @@ CONTAINS
           DTG    = DTTST / REAL(NT-IT)
         END IF
         !
-        IF ( FLACT .AND. IT.NE.NT .AND. IAPROC.EQ.NAPLOG ) THEN
+        IF ( FLACT .AND. IT.NE.NT .AND. IAPROC.EQ.NAPLOG .and. verboselog) THEN
           CALL STME21 ( TIME , IDTIME )
           IF ( IDLAST .NE. TIME(1) ) THEN
             WRITE (NDSO,900) ITIME, IPASS, IDTIME(01:19), IDACT, OUTID
@@ -2417,7 +2432,7 @@ CONTAINS
 #endif
         !
         !
-      END DO
+      END DO ! DO IT = IT0, NT
 
       IF ( .NOT. FLZERO ) THEN
 #ifdef W3_TIMINGS
@@ -2438,6 +2453,31 @@ CONTAINS
       !     Delay if data assimilation time.
       !
       !
+#ifdef W3_PIO
+      if (dsec21(time,tend) == 0.0) then    ! req'd in case waves are running in slow loop
+
+        if (use_historync) then
+          floutg = .false.
+          floutg2 = .false.
+          if (histwr) then
+            call w3cprt (imod)
+            call w3outg (va, flpfld, .true., .false. )
+            call write_history(tend)
+          end if
+        end if
+
+        if (use_restartnc) then
+          if (rstwr) then
+            call set_user_timestring(tend,user_timestring)
+            fname = trim(FNMRST)//trim(user_restfname)//trim(user_timestring)//'.nc'
+            call write_restart(trim(fname), va, mapsta+8*mapst2)
+          end if
+        end if
+
+      end if
+#endif
+
+
       IF ( TOFRST(1)  .EQ. -1 ) THEN
         DTTST  = 1.
       ELSE
@@ -2465,30 +2505,33 @@ CONTAINS
         !
         ! 4.b Processing and MPP preparations
         !
-        IF ( FLOUT(1) ) THEN
-          FLOUTG = DSEC21(TIME,TONEXT(:,1)).EQ.0.
-        ELSE
-          FLOUTG = .FALSE.
-        END IF
-        !
-        IF ( FLOUT(7) ) THEN
-          FLOUTG2 = DSEC21(TIME,TONEXT(:,7)).EQ.0.
-        ELSE
-          FLOUTG2 = .FALSE.
-        END IF
-        !
-        FLPART = .FALSE.
-        IF ( FLOUT(1) .AND. FLPFLD ) FLPART = FLPART .OR. DSEC21(TIME,TONEXT(:,1)).EQ.0.
-        IF ( FLOUT(6) ) FLPART = FLPART .OR. DSEC21(TIME,TONEXT(:,6)).EQ.0.
-        !
+        if (.not. use_historync) then
+          IF ( FLOUT(1) ) THEN
+            FLOUTG = DSEC21(TIME,TONEXT(:,1)).EQ.0.
+          ELSE
+            FLOUTG = .FALSE.
+          END IF
+          !
+          IF ( FLOUT(7) ) THEN
+            FLOUTG2 = DSEC21(TIME,TONEXT(:,7)).EQ.0.
+          ELSE
+            FLOUTG2 = .FALSE.
+          END IF
+          !
+          FLPART = .FALSE.
+          IF ( FLOUT(1) .AND. FLPFLD ) FLPART = FLPART .OR. DSEC21(TIME,TONEXT(:,1)).EQ.0.
+          IF ( FLOUT(6) ) FLPART = FLPART .OR. DSEC21(TIME,TONEXT(:,6)).EQ.0.
+          !
 #ifdef W3_T
-        WRITE (NDST,9042) LOCAL, FLPART, FLOUTG
+          WRITE (NDST,9042) LOCAL, FLPART, FLOUTG
 #endif
+          !
+          IF ( LOCAL .AND. FLPART ) CALL W3CPRT ( IMOD )
+          IF ( LOCAL .AND. (FLOUTG .OR. FLOUTG2) ) then
+            CALL W3OUTG ( VA, FLPFLD, FLOUTG, FLOUTG2 )
+          end if
+        end if ! if (.not. use_historync) then
         !
-        IF ( LOCAL .AND. FLPART ) CALL W3CPRT ( IMOD )
-        IF ( LOCAL .AND. (FLOUTG .OR. FLOUTG2) ) then
-          CALL W3OUTG ( VA, FLPFLD, FLOUTG, FLOUTG2 )
-        end if
         !
 #ifdef W3_MPI
         FLGMPI = .FALSE.
@@ -2557,33 +2600,35 @@ CONTAINS
 #endif
         !
 #ifdef W3_MPI
-        IF ( FLOUT(4) .AND. NRQRS.NE.0 ) THEN
-          IF ( DSEC21(TIME,TONEXT(:,4)).EQ.0. ) THEN
-            CALL MPI_STARTALL ( NRQRS, IRQRS , IERR_MPI )
-            FLGMPI(4) = .TRUE.
-            NRQMAX    = MAX ( NRQMAX , NRQRS )
+        if (.not. use_restartnc) then
+          IF ( FLOUT(4) .AND. NRQRS.NE.0 ) THEN
+            IF ( DSEC21(TIME,TONEXT(:,4)).EQ.0. ) THEN
+              CALL MPI_STARTALL ( NRQRS, IRQRS , IERR_MPI )
+              FLGMPI(4) = .TRUE.
+              NRQMAX    = MAX ( NRQMAX , NRQRS )
 #endif
 #ifdef W3_MPIT
-            WRITE (NDST,9043) '4 ', NRQRS, NRQMAX, NAPRST
+              WRITE (NDST,9043) '4 ', NRQRS, NRQMAX, NAPRST
 #endif
 #ifdef W3_MPI
+            END IF
           END IF
-        END IF
 #endif
-        !
+          !
 #ifdef W3_MPI
-        IF ( FLOUT(8) .AND. NRQRS.NE.0 ) THEN
-          IF ( DSEC21(TIME,TONEXT(:,8)).EQ.0. ) THEN
-            CALL MPI_STARTALL ( NRQRS, IRQRS , IERR_MPI )
-            FLGMPI(8) = .TRUE.
-            NRQMAX    = MAX ( NRQMAX , NRQRS )
+          IF ( FLOUT(8) .AND. NRQRS.NE.0 ) THEN
+            IF ( DSEC21(TIME,TONEXT(:,8)).EQ.0. ) THEN
+              CALL MPI_STARTALL ( NRQRS, IRQRS , IERR_MPI )
+              FLGMPI(8) = .TRUE.
+              NRQMAX    = MAX ( NRQMAX , NRQRS )
 #endif
 #ifdef W3_MPIT
-            WRITE (NDST,9043) '8 ', NRQRS, NRQMAX, NAPRST
+              WRITE (NDST,9043) '8 ', NRQRS, NRQMAX, NAPRST
 #endif
 #ifdef W3_MPI
+            END IF
           END IF
-        END IF
+        end if ! if (.not. use_restartnc)
 #endif
         !
 #ifdef W3_MPI
@@ -2621,7 +2666,6 @@ CONTAINS
         call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE AFTER TIME LOOP 2')
         !
         ! 4.c Reset next output time
-
         !
         TOFRST(1) = -1
         TOFRST(2) =  0
@@ -2643,7 +2687,7 @@ CONTAINS
 #ifdef W3_SBS
                    .OR. ( J .EQ. 7 )         &
 #endif
-                   ) THEN
+                   .and. .not. use_historync) THEN
                 IF ( IAPROC .EQ. NAPFLD ) THEN
 #ifdef W3_MPI
                   IF ( FLGMPI(1) ) CALL MPI_WAITALL ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
@@ -2655,7 +2699,7 @@ CONTAINS
 #endif
                     CALL W3IOGO( 'WRITE', NDS(7), ITEST, IMOD &
 #ifdef W3_ASCII
-                            ,NDS(14)                          &
+                         ,NDS(14)                             &
 #endif
                             )
 #ifdef W3_SBS
@@ -2691,12 +2735,12 @@ CONTAINS
 #ifdef W3_BIN2NC
                   CALL W3IOPON ( 'WRITE', NDS(8), ITEST, IMOD )
 #else
-                  CALL W3IOPO ( 'WRITE', NDS(8), ITEST, IMOD &                          
+                  CALL W3IOPO ( 'WRITE', NDS(8), ITEST, IMOD &
 #ifdef W3_ASCII
-                          ,NDS(15)                           &
+                       ,NDS(15)                              &
 #endif
                           )
-#endif 
+#endif
                   END IF
                 !
               ELSE IF ( J .EQ. 3 ) THEN
@@ -2704,7 +2748,7 @@ CONTAINS
                 ! Track output
                 !
                 CALL W3IOTR ( NDS(11), NDS(12), VA, IMOD )
-              ELSE IF ( J .EQ. 4 ) THEN
+              ELSE IF ( J .EQ. 4 .and. .not. use_restartnc) THEN
                 CALL W3IORS ('HOT', NDS(6), XXX, IMOD, FLOUT(8) )
                 ITEST = RSTYPE
               ELSE IF ( J .EQ. 5 ) THEN
@@ -2785,7 +2829,7 @@ CONTAINS
 
         ! If there is a second stream of restart files then J=8 and FLOUT(8)=.TRUE.
         J=8
-        IF ( FLOUT(J) ) THEN
+        IF ( FLOUT(J) .and. .not. use_restartnc) THEN
           !
           ! 4.d Perform output
           !
@@ -2848,7 +2892,7 @@ CONTAINS
       !
       ! 5.  Update log file ------------------------------------------------ /
       !
-      IF ( IAPROC.EQ.NAPLOG ) THEN
+      IF ( IAPROC.EQ.NAPLOG .and. verboselog) THEN
         !
         CALL STME21 ( TIME , IDTIME )
         IF ( FLCUR ) THEN
@@ -2901,7 +2945,7 @@ CONTAINS
       WRITE (SCREEN,951) STTIME
     END IF
 
-    IF ( IAPROC .EQ. NAPLOG ) WRITE (NDSO,902)
+    IF ( IAPROC .EQ. NAPLOG .and. verboselog) WRITE (NDSO,902)
     !
     DEALLOCATE(FIELD)
     DEALLOCATE(TAUWX, TAUWY)

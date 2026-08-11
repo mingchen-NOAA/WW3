@@ -566,12 +566,18 @@ CONTAINS
     !/
     !
     integer*2, intent(out) :: STATUS(NX)
-    INTEGER :: COLLECTED(NX), NEXTVERT(NX), PREVVERT(NX)
+    integer, allocatable   :: collected(:), nextvert(:), prevvert(:)
     INTEGER :: ISFINISHED, INEXT, IPREV
     INTEGER :: IPNEXT, IPPREV, ZNEXT, IP, I, IE
 #ifdef W3_S
     CALL STRACE (IENT, 'VA_SETUP_IOBPD')
 #endif
+    allocate(collected(nx))
+    allocate(nextvert(nx))
+    allocate(prevvert(nx))
+    nextvert = 0
+    prevvert = 0
+
     STATUS(:) = 0
     DO IE=1,NTRI
       DO I=1,3
@@ -638,6 +644,11 @@ CONTAINS
         EXIT
       END IF
     END DO
+
+    deallocate(collected)
+    deallocate(nextvert)
+    deallocate(prevvert)
+
   END SUBROUTINE GET_BOUNDARY_STATUS
 
   !/ -------------------------------------------------------------------/
@@ -834,9 +845,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 ::  IBC, IX
-    INTEGER                 ::  MASK(NX)
+    integer, allocatable    :: mask(:)
     INTEGER*2               ::  STATUS(NX)
     !
+    allocate(mask(nx))
     MASK(:)=1
     CALL SET_IOBP (MASK, STATUS)
     !
@@ -852,6 +864,8 @@ CONTAINS
         IF ( (TMPSTA(1,IX).EQ.1) .AND. (STATUS(IX).EQ.0) .AND. (ZBIN(1,IX) .LT. ZLIM)) TMPSTA(1,IX) = 2
       END IF
     END DO
+
+    deallocate(mask)
     !
   END SUBROUTINE UG_GETOPENBOUNDARY
   !/ ------------------------------------------------------------------- /
@@ -945,14 +959,14 @@ CONTAINS
       I2 = TRIGP(2,K)
       I3 = TRIGP(3,K)
 
-!AR: todo call this only for global grid 
+!AR: todo call this only for global grid
       CALL FIX_PERIODCITY(I1,I2,I3,XGRD,YGRD,PT)
       !
       ! cross product of edge-vector  (orientated anticlockwise)
       !
-      TRIA(K) = REAL( (PT(2,2)-PT(1,2)) & 
-           *(PT(1,1)-PT(3,1))      &    
-           +(PT(3,2)-PT(1,2))      &    
+      TRIA(K) = REAL( (PT(2,2)-PT(1,2)) &
+           *(PT(1,1)-PT(3,1))      &
+           +(PT(3,2)-PT(1,2))      &
            *(PT(2,1)-PT(1,1))      )*0.5
       !
       ! test on negative triangle area, which means that the orientiation is not as assumed to be anticw.
@@ -1172,8 +1186,8 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/ local parameter
 
-    INTEGER               :: CONN(NX)
-    INTEGER               :: IP, IE, I, J, N(3)
+    integer, allocatable :: conn(:)
+    INTEGER              :: IP, IE, I, J, N(3)
 #ifdef W3_S
     INTEGER                      ::  IENT = 0
 #endif
@@ -1182,7 +1196,7 @@ CONTAINS
 #ifdef W3_S
     CALL STRACE (IENT, 'COUNT')
 #endif
-
+    allocate(conn(nx))
     COUNTRI=0
     COUNTOT=0
     CONN(:)= 0
@@ -1213,6 +1227,7 @@ CONTAINS
     ENDDO
     COUNTOT=J
 
+    deallocate(conn)
   END SUBROUTINE COUNT
 
   !/----------------------------------------------------------------------------
@@ -1373,12 +1388,11 @@ CONTAINS
 
     INTEGER :: I, J, K
     INTEGER :: IP, IE, POS, POS_J, POS_K, IP_I, IP_J, IP_K
-    INTEGER :: I1, I2, I3, CHILF(NX)
-    INTEGER :: TMP(NX), CELLVERTEX(NX,COUNTRI,2)
+    INTEGER :: I1, I2, I3
     INTEGER :: COUNT_MAX
     DOUBLE PRECISION   :: TRIA03
     INTEGER, ALLOCATABLE :: PTABLE(:,:)
-
+    integer, allocatable :: cellvertex(:,:,:), tmp(:)
 #ifdef W3_S
     INTEGER                      ::  IENT = 0
 #endif
@@ -1403,18 +1417,20 @@ CONTAINS
       SI(I2) = SI(I2) + TRIA03
       SI(I3) = SI(I3) + TRIA03
     ENDDO
+    allocate(cellvertex(nx,countri,2))
+    allocate(tmp(nx))
 
     CELLVERTEX(:,:,:) = 0 ! Stores for each node the Elementnumbers of the connected Elements
     ! and the Position of the Node in the Element Index
 
-    CHILF = 0
+    tmp = 0
 
     DO IE = 1, NTRI
       DO J=1,3
         I = TRIGP(J,IE)!INE(J,IE)
-        CHILF(I) = CHILF(I)+1
-        CELLVERTEX(I,CHILF(I),1) = IE
-        CELLVERTEX(I,CHILF(I),2) = J
+        TMP(I) = TMP(I)+1
+        CELLVERTEX(I,TMP(I),1) = IE
+        CELLVERTEX(I,TMP(I),2) = J
       END DO
     ENDDO
     !
@@ -1432,6 +1448,7 @@ CONTAINS
       END DO
       INDEX_CELL(IP+1)=J+1
     END DO
+    deallocate(cellvertex)
 
     IF (.NOT. FSNIMP) RETURN
 
@@ -1551,6 +1568,7 @@ CONTAINS
       END DO
     END DO
 
+    deallocate(tmp)
     DEALLOCATE(PTABLE)
 
   END SUBROUTINE AREA_SI
@@ -2086,14 +2104,14 @@ CONTAINS
     REAL                 :: VAR(3), FACT, LATMEAN
     REAL                 :: DEDX(3), DEDY(3)
     REAL                 :: DVDXIE, DVDYIE
-    REAL                 :: WEI(NX)
-
+    real, allocatable    :: wei(:)
 #ifdef W3_PDLIB
     INTEGER              :: NI_GL(3)
     INTEGER              :: IE_GL
     REAL                 :: WEI_LOCAL(NSEAL)
 #endif
 
+    allocate(wei(nx))
     DIFFX = 0.
     DIFFY = 0.
     !
@@ -2152,6 +2170,7 @@ CONTAINS
     CALL PDLIB_exchange1Dreal(DIFFX(1,:))
     CALL PDLIB_exchange1Dreal(DIFFY(1,:))
 #endif
+    deallocate(wei)
     !
   END SUBROUTINE UG_GRADIENTS
   !/ ------------------------------------------------------------------- /
@@ -2370,13 +2389,21 @@ CONTAINS
     INTEGER, INTENT(IN)   :: MASK(NX)
     INTEGER*2, INTENT(OUT)  :: STATUS(NX)
     !
-    INTEGER :: COLLECTED(NX), NEXTVERT(NX), PREVVERT(NX)
-    INTEGER          :: ISFINISHED !, INEXT, IPREV
-    INTEGER :: INEXT(3), IPREV(3)
-    INTEGER          :: ZNEXT, IP, I, IE, IPNEXT, IPPREV, COUNT
+    integer, allocatable :: collected(:), nextvert(:), prevvert(:)
+    INTEGER              :: ISFINISHED !, INEXT, IPREV
+    INTEGER              :: INEXT(3), IPREV(3)
+    INTEGER              :: ZNEXT, IP, I, IE, IPNEXT, IPPREV, COUNT
+
     STATUS = -1
     INEXT=(/ 2, 3, 1 /) !IPREV=1+MOD(I+1,3)
     IPREV=(/ 3, 1, 2 /) !INEXT=1+MOD(I,3)
+
+    allocate(collected(nx))
+    allocate(nextvert(nx))
+    allocate(prevvert(nx))
+    nextvert = 0
+    prevvert = 0
+
     DO IE=1,NTRI
       ! If one of the points of the triangle is masked out (land) then do as if triangle does not exist...
       !        IF ((MASK(TRIGP(1,IE)).GT.0).AND.(MASK(TRIGP(2,IE)).GT.0).AND.(MASK(TRIGP(3,IE)).GT.0)) THEN
@@ -2443,6 +2470,9 @@ CONTAINS
     STATUS = 1
     CALL GET_BOUNDARY(NX, NTRI, TRIGP, STATUS, PREVVERT, NEXTVERT)
 
+    deallocate(collected)
+    deallocate(nextvert)
+    deallocate(prevvert)
     !#ifdef MPI_PARALL_GRID
     !      CALL exchange_p2di(STATUS)
     !#endif
@@ -2783,7 +2813,7 @@ CONTAINS
   END SUBROUTINE TRIANG_INDEXES
 
   !/ ------------------------------------------------------------------- /
-  
+
   !>
   !> @brief Redefines the values of the boundary points and angle pointers
   !>  based on the MAPSTA array.
@@ -2882,7 +2912,7 @@ CONTAINS
     REAL (KIND = 8)         :: DYP1, DYP2, DYP3, eDet1, eDet2, EVX, EVY
     REAL(KIND=8), PARAMETER :: THR    = TINY(1.)
     INTEGER                 :: I1, I2, I3
-    INTEGER                 :: ITMP(NX), NEXTVERT(NX), PREVVERT(NX)
+    integer, allocatable :: itmp(:), nextvert(:), prevvert(:)
     CHARACTER(60) :: FNAME
 #ifdef W3_S
     INTEGER, SAVE           :: IENT = 0
@@ -2900,6 +2930,11 @@ CONTAINS
 #ifdef W3_S
     CALL STRACE (IENT, 'SETUGIOBP')
 #endif
+    allocate(itmp(nx))
+    allocate(nextvert(nx))
+    allocate(prevvert(nx))
+    nextvert = 0
+    prevvert = 0
     !
     !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ! 2.  Searches for boundary points
@@ -3013,6 +3048,9 @@ CONTAINS
       END IF
     END DO
 #endif
+    deallocate(itmp)
+    deallocate(nextvert)
+    deallocate(prevvert)
     !
     ! Recomputes the angles used in the gradients estimation
     !

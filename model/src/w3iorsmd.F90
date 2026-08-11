@@ -63,6 +63,8 @@ MODULE W3IORSMD
   !  7. Source code :
   !
   !/ ------------------------------------------------------------------- /
+  !module default
+  IMPLICIT NONE
   PUBLIC
   !/
   ! Add fields needed for OASIS coupling in restart
@@ -110,7 +112,7 @@ CONTAINS
   !>
   !> @author H. L. Tolman  @date 22-Mar-2021
   !>
-  SUBROUTINE W3IORS ( INXOUT, NDSR, DUMFPI, IMOD, FLRSTRT )
+  SUBROUTINE W3IORS ( INXOUT, NDSR, DUMFPI, IMOD, FLRSTRT , filename)
     !/
     !/                  +-----------------------------------+
     !/                  | WAVEWATCH III           NOAA/NCEP |
@@ -335,6 +337,7 @@ CONTAINS
 #ifdef W3_TIMINGS
     USE W3PARALL, ONLY: PRINT_MY_TIME
 #endif
+    USE w3adatmd, ONLY : USSHX, USSHY
 #ifdef W3_PDLIB
     USE PDLIB_FIELD_VEC
 #endif
@@ -354,6 +357,7 @@ CONTAINS
     REAL, INTENT(INOUT)           :: DUMFPI
     CHARACTER, INTENT(IN)         :: INXOUT*(*)
     LOGICAL, INTENT(IN),OPTIONAL  :: FLRSTRT
+    character(len=*), intent(in), optional :: filename
     !/
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
@@ -386,7 +390,6 @@ CONTAINS
     LOGICAL                 :: NDSROPN
     CHARACTER(LEN=4)        :: TYPE
     CHARACTER(LEN=10)       :: VERTST
-    !      CHARACTER(LEN=21)       :: FNAME
     CHARACTER(LEN=40)       :: FNAME
     CHARACTER(LEN=26)       :: IDTST
     CHARACTER(LEN=30)       :: TNAME
@@ -472,58 +475,61 @@ CONTAINS
     !
     ! open file ---------------------------------------------------------- *
     !
-    IF (LEN_TRIM(FNMRST) .EQ. 0) THEN
-      FNMPRE_LOCAL = FNMPRE
-    ELSE
-      FNMPRE_LOCAL = FNMRST
-    END IF
-    !
-
-    I      = LEN_TRIM(FILEXT)
-    J      = LEN_TRIM(FNMPRE_LOCAL)
-    !
-    !CHECKPOINT RESTART FILE
-    ITMP=0
-    IF ( PRESENT(FLRSTRT) ) THEN
-      IF (FLRSTRT) THEN
-        WRITE(TIMETAG,"(i8.8,'.'i6.6)")TIME(1),TIME(2)
-        FNAME=TIMETAG//'.restart.'//FILEXT(:I)
-        ITMP=1
-      END IF
-    END IF
-    IF(ITMP.NE.1)THEN ! FNAME is not set above, so do it here
-      IF ( IFILE.EQ.0 ) THEN
-        FNAME  = 'restart.'//FILEXT(:I)
+    if (present(filename)) then ! only when restart_nc and restart_from_binary=true
+      open (ndsr,file=trim(filename),form='unformatted', convert=file_endian, &
+           access='stream',iostat=ierr, status='old',action='read')
+    else
+      IF (LEN_TRIM(FNMRST) .EQ. 0) THEN
+        FNMPRE_LOCAL = FNMPRE
       ELSE
-        FNAME  = 'restartNNN.'//FILEXT(:I)
-        IF ( WRITE .AND. IAPROC.EQ.NAPRST )                         &
-             WRITE (FNAME(8:10),'(I3.3)') IFILE
+        FNMPRE_LOCAL = FNMRST
       END IF
-    END IF
 
-    IFILE  = IFILE + 1
-    !
+
+      I      = LEN_TRIM(FILEXT)
+      J      = LEN_TRIM(FNMPRE_LOCAL)
+      !
+      !CHECKPOINT RESTART FILE
+      ITMP=0
+      IF ( PRESENT(FLRSTRT) ) THEN
+        IF (FLRSTRT) THEN
+          WRITE(TIMETAG, '(i8.8, ".", i6.6)') TIME(1), TIME(2)
+          FNAME=TIMETAG//'.restart.'//FILEXT(:I)
+          ITMP=1
+        END IF
+      END IF
+      IF(ITMP.NE.1)THEN ! FNAME is not set above, so do it here
+        IF ( IFILE.EQ.0 ) THEN
+          FNAME  = 'restart.'//FILEXT(:I)
+        ELSE
+          FNAME  = 'restartNNN.'//FILEXT(:I)
+          IF ( WRITE .AND. IAPROC.EQ.NAPRST )                         &
+               WRITE (FNAME(8:10),'(I3.3)') IFILE
+        END IF
+      END IF
+      IFILE  = IFILE + 1
+      !
 #ifdef W3_T
-    WRITE (NDST,9001) FNAME, LRECL
+      WRITE (NDST,9001) FNAME, LRECL
 #endif
-    !
+      !
+      IF(NDST.EQ.NDSR)THEN
+        IF ( IAPROC .EQ. NAPERR )                                    &
+             WRITE(NDSE,'(A,I8)')'UNIT NUMBERS OF RESTART FILE AND '&
+             //'TEST OUTPUT ARE THE SAME : ',NDST
+        CALL EXTCDE ( 15 )
+      ENDIF
 
-    IF(NDST.EQ.NDSR)THEN
-      IF ( IAPROC .EQ. NAPERR )                                    &
-           WRITE(NDSE,'(A,I8)')'UNIT NUMBERS OF RESTART FILE AND '&
-           //'TEST OUTPUT ARE THE SAME : ',NDST
-      CALL EXTCDE ( 15 )
-    ENDIF
-
-    IF ( WRITE ) THEN
-      IERR = 0
-      IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )                    &
-           OPEN (NDSR,FILE=FNMPRE_LOCAL(:J)//FNAME,form='UNFORMATTED', convert=file_endian,       &
-           ACCESS='STREAM',IOSTAT=IERR)
-    ELSE
-      OPEN (NDSR,FILE=FNMPRE_LOCAL(:J)//FNAME,form='UNFORMATTED', convert=file_endian,       &
-           ACCESS='STREAM',IOSTAT=IERR,STATUS='OLD',ACTION='READ')
-    END IF
+      IF ( WRITE ) THEN
+        IERR = 0
+        IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )                    &
+          OPEN (NDSR,FILE=FNMPRE_LOCAL(:J)//FNAME,form='UNFORMATTED', convert=file_endian,       &
+          ACCESS='STREAM',IOSTAT=IERR)
+      ELSE
+        OPEN (NDSR,FILE=FNMPRE_LOCAL(:J)//FNAME,form='UNFORMATTED', convert=file_endian,       &
+          ACCESS='STREAM',IOSTAT=IERR,STATUS='OLD',ACTION='READ')
+      END IF
+    end if ! if (present(filename))
     !
     ! In/Out file is successfully opened
     IF (IERR .EQ. 0) THEN
@@ -1113,6 +1119,12 @@ CONTAINS
                                          ISWRITE=.TRUE.,POS=RPOS)
               WRITE(NDSR,IOSTAT=IERR) TAUOCY(1:NSEA)
             ENDIF
+            IF ( FLOGRR(6,14) ) THEN
+              WRITE(NDSR,IOSTAT=IERR) USSHX(1:NSEA)
+              IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
+                                         ISWRITE=.TRUE.,POS=RPOS)
+              WRITE(NDSR,IOSTAT=IERR) USSHY(1:NSEA)
+            ENDIF
             IF ( FLOGRR(7,2) ) THEN
               WRITE(NDSR,IOSTAT=IERR) UBA(1:NSEA)
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
@@ -1207,7 +1219,6 @@ CONTAINS
         ! Updates reflections maps:
         !
         IF (GTYPE.EQ.UNGTYPE) THEN
-          !AR: not needed since already initialized on w3iogr                CALL SET_UG_IOBP
 #ifdef W3_REF1
         ELSE
           CALL W3SETREF
@@ -1423,6 +1434,19 @@ CONTAINS
               ENDIF
             ENDDO
           ENDIF
+          IF ( FLOGOA(6,14) ) THEN
+            READ (NDSR,IOSTAT=IERR) TMP(1:NSEA)
+            IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',30)
+            READ (NDSR,IOSTAT=IERR) TMP2(1:NSEA)
+            IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',30)
+            DO I=1, NSEALM
+              J = IAPROC + (I-1)*NAPROC
+              IF (J .LE. NSEA) THEN
+                USSHX(I) = TMP(J)
+                USSHY(I) = TMP2(J)
+              ENDIF
+            ENDDO
+          ENDIF
           IF ( FLOGOA(7,2) ) THEN
             READ (NDSR,IOSTAT=IERR) TMP(1:NSEA)
             IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',30)
@@ -1512,6 +1536,8 @@ CONTAINS
           UBD     = 0.
           PHIBBL  = 0.
           TAUBBL  = 0.
+          USSHX   = 0.
+          USSHY   = 0.
         ENDIF
 #ifdef W3_T
         WRITE (NDST,9008)

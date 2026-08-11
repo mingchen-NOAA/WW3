@@ -191,8 +191,8 @@ CONTAINS
     !
     USE W3GDATMD, only: FLCX, FLCY
     USE CONSTANTS, only : GRAV, TPI
-    USE W3GDATMD, only: XGRD, YGRD, NX, NSEA, NTRI, TRIGP, NSPEC
-    USE W3GDATMD, only: MAPFS, GRIDS, NTH, SIG, NK
+    USE W3GDATMD, only: NX, NSEA, NTRI, TRIGP, NSPEC
+    USE W3GDATMD, only: MAPFS, NTH, SIG, NK
     USE W3ADATMD, only: MPI_COMM_WCMP, MPI_COMM_WAVE
     USE W3ODATMD, only: IAPROC, NAPROC, NTPROC
     USE yowDatapool, only: istatus
@@ -447,7 +447,7 @@ CONTAINS
     USE W3SERVMD, only: STRACE
 #endif
     !
-    USE W3GDATMD, only : INDEX_MAP, NBND_MAP, NSEAL, MAPSTA, GRIDS, NX
+    USE W3GDATMD, only : INDEX_MAP, NBND_MAP, MAPSTA, GRIDS, NX
     USE W3GDATMD, only : MAPSTA_LOC
     USE W3ODATMD, only : IAPROC, NAPROC
     USE YOWNODEPOOL, only: iplg, npa
@@ -560,7 +560,7 @@ CONTAINS
     USE W3SERVMD, only: STRACE
 #endif
     !
-    USE W3GDATMD, only : NSEAL, GRIDS, NTH
+    USE W3GDATMD, only : GRIDS, NTH
     USE W3GDATMD, only : IOBP, IOBPD
     USE W3GDATMD, only : IOBP_LOC, IOBPD_LOC, IOBDP_LOC, IOBPA_LOC
     USE W3ODATMD, only : IAPROC, NAPROC
@@ -926,7 +926,7 @@ CONTAINS
 #if defined(W3_REF1) || defined(W3__DEBUGSOLVER)
     USE W3GDATMD, only: NX
 #endif
-    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, ipgl, iplg, npa, np
+    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, iplg, npa, np
     use yowElementpool, only: ne, INE
     use yowDatapool, only: rtype
     use yowExchangeModule, only : PDLIB_exchange1DREAL
@@ -1258,7 +1258,7 @@ CONTAINS
     USE W3GDATMD, only: NX
 #endif
 
-    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, ipgl, iplg, npa
+    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, iplg, npa
     use yowElementpool, only: ne, INE
     use yowDatapool, only: rtype
     use yowExchangeModule, only : PDLIB_exchange1DREAL
@@ -1558,7 +1558,7 @@ CONTAINS
 #if defined(W3_REF1) || defined(W3__DEBUGSOLVER)
     USE W3GDATMD, only: NX
 #endif
-    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, PDLIB_TRIA, ipgl, iplg, npa, np
+    USE YOWNODEPOOL,    only: PDLIB_SI, PDLIB_IEN, PDLIB_TRIA, iplg, npa, np
     use yowElementpool, only: ne, INE
     use yowDatapool, only: rtype
     use yowExchangeModule, only : PDLIB_exchange1DREAL
@@ -3832,8 +3832,7 @@ CONTAINS
     USE W3SERVMD, only: STRACE
 #endif
     !
-
-    USE W3GDATMD, only: NK, NTH, NSPEC
+    USE W3GDATMD, only: NTH, NSPEC
     USE W3GDATMD, only: IOBPD_LOC, IOBPA_LOC, IOBDP_LOC
     USE W3GDATMD, only: CLATS
 #ifdef W3_REF1
@@ -6794,7 +6793,6 @@ CONTAINS
     !
     USE CONSTANTS, only : TPI, TPIINV
     USE W3PARALL, only: INIT_GET_ISEA
-    USE YOWNODEPOOL, only: iplg
     USE yowfunction, only: pdlib_abort
     USE W3GDATMD, only: B_JGS_USE_JACOBI
     USE W3PARALL, only : ListISPprevDir, ListISPnextDir
@@ -7119,15 +7117,15 @@ CONTAINS
     USE CONSTANTS
     !
     !
-    USE W3GDATMD, only: NX, NTH, ECOS, ESIN 
+    USE W3GDATMD, only: NTH, ECOS, ESIN 
 #ifdef W3_REF1
-    USE W3GDATMD, only: REFPARS, REFLC, REFLD, MAPSTA, MAPFS, IOBP, IOBPD, DTH
+    USE W3GDATMD, only: NX, REFPARS, REFLC, REFLD, MAPSTA, MAPFS, IOBP, IOBPD, DTH
 #endif
     USE W3GDATMD, only: IOBP_LOC, IOBPD_LOC, IOBPA_LOC
 #ifdef W3_DEBUGSETUGIOBP
     USE W3ODATMD, only : IAPROC
 #endif
-    USE YOWNODEPOOL,    only: PDLIB_IEN, ipgl, iplg, npa
+    USE YOWNODEPOOL,    only: PDLIB_IEN, npa
     use yowElementpool, only: NE, INE
     use yowExchangeModule, only : PDLIB_exchange1DREAL
 #ifdef W3_S
@@ -7554,7 +7552,7 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, only: STRACE
 #endif
-    USE W3GDATMD, only: NSPEC, B_JGS_BLOCK_GAUSS_SEIDEL, GRIDS
+    USE W3GDATMD, only: NSPEC, B_JGS_BLOCK_GAUSS_SEIDEL
     use YOWNODEPOOL, only: PDLIB_NNZ, npa
     USE yowfunction, only: pdlib_abort
     USE W3GDATMD, only: NTH, NSEAL
