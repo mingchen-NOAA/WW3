@@ -151,6 +151,8 @@ MODULE W3IOGOMD
 #ifdef W3_S
   USE W3SERVMD, ONLY : STRACE
 #endif
+  !module default
+  IMPLICIT NONE
   !/
   PUBLIC
   CHARACTER(LEN=1024)                   :: FLDOUT
@@ -237,8 +239,6 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
-    !
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -407,7 +407,6 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -660,7 +659,6 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -791,7 +789,6 @@ CONTAINS
     !
     !/ ------------------------------------------------------------------- /
     USE W3GDATMD, ONLY: US3DF, USSPF
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
@@ -1092,6 +1089,9 @@ CONTAINS
     CASE('TOC')
       I = 6
       J = 13
+    CASE('USSH')
+      I = 6
+      J = 14
       !
       ! Group 7
       !
@@ -1310,6 +1310,11 @@ CONTAINS
          HCMAXE, HMAXE, HCMAXD, HMAXD, QP, PQP,      &
          PTHP0, PPE, PGW, PSW, PTM1, PT1, PT2, PEP,  &
          WBT, QKK
+      ! USSHX, USSHY : surface layer (SL) averaged SD
+      ! HSL          : surface layer depth (1/5 of the mixed layer depth
+      !                from the coupler)
+    USE W3ADATMD, ONLY: USSHX, USSHY
+    USE W3IDATMD, ONLY: HSL
     USE W3ODATMD, ONLY: UNDEF, ICPRT, DTPRT, WSCUT,  &
          NOSWLL, FLOGRD, FLOGR2, NOGRP, NGRPP
 #ifdef W3_T
@@ -1320,7 +1325,6 @@ CONTAINS
 #endif
     !
     USE W3PARALL, ONLY : INIT_GET_ISEA
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -1372,6 +1376,11 @@ CONTAINS
     REAL                       USSCO, FT1
     REAL, SAVE              :: HSMIN = 0.01
     LOGICAL                 :: FLOLOC(NOGRP,NGRPP)
+    ! SWW: angle between wind and waves
+    ! LHSL: local surface layer depth
+    REAL                    :: LHSL
+    ! tmp variable for surface layer averaged Stokes drift
+    REAL                    :: USSCOH
     !/
     !/ ------------------------------------------------------------------- /
     !/
@@ -1479,6 +1488,11 @@ CONTAINS
     HMAXD = UNDEF
     QP    = UNDEF
     WBT    = UNDEF
+    !
+    ETUSCX  = 0.
+    ETUSCY  = 0.
+    USSHX  = 0.
+    USSHY  = 0.
     !
     ! 2.  Integral over discrete part of spectrum ------------------------ *
     !
@@ -1609,6 +1623,17 @@ CONTAINS
           TPMS(JSEA) = TPI/SIG(IK)
         END IF
 
+        IF (LMPENABLED) then
+            IF (HSLMODE.EQ.0) then
+              LHSL = 10.0 ! a constant value for testing purposes
+            ELSE
+              ! Get surface layer depth from coupler
+              IX    = MAPSF(ISEA,1)
+              IY    = MAPSF(ISEA,2)
+              LHSL  = HSL(IX,IY)      ! depth over which SD is averaged
+            END IF
+        END IF
+
         !
         ! Directional moments in the last freq. band
         !
@@ -1648,8 +1673,14 @@ CONTAINS
           USSCO=FKD*SIG(IK)*WN(IK,ISEA)*COSH(2.*KD)
           BHD(JSEA) = BHD(JSEA) +                             &
                GRAV*WN(IK,ISEA) * EBD(IK,JSEA) / (SINH(2.*KD))
+          IF (LMPENABLED) THEN
+            USSCOH=0.5*FKD*SIG(IK)*(1.-EXP(-2.*WN(IK,ISEA)*LHSL))/LHSL*COSH(2.*KD)
+          ENDIF
         ELSE
           USSCO=FACTOR*SIG(IK)*2.*WN(IK,ISEA)
+          IF (LMPENABLED) THEN
+            USSCOH=FACTOR*SIG(IK)*(1.-EXP(-2.*WN(IK,ISEA)*LHSL))/LHSL
+          ENDIF
         END IF
         !
         ABXX(JSEA)   = MAX ( 0. , ABXX(JSEA) ) * FACTOR
@@ -1665,6 +1696,10 @@ CONTAINS
         !
         USSX(JSEA)  = USSX(JSEA) + ABX(JSEA)*USSCO
         USSY(JSEA)  = USSY(JSEA) + ABY(JSEA)*USSCO
+        IF (LMPENABLED) THEN
+          USSHX(JSEA) = USSHX(JSEA) + ABX(JSEA)*USSCOH
+          USSHY(JSEA) = USSHY(JSEA) + ABY(JSEA)*USSCOH
+        ENDIF
         !
         ! Fills the 3D Stokes drift spectrum array
         !  ! The US3D Stokes drift specrum array is now calculated in a
@@ -1938,6 +1973,17 @@ CONTAINS
     !
     DO JSEA=1, NSEAL
       CALL INIT_GET_ISEA(ISEA, JSEA)
+
+      IF (LMPENABLED) then
+        IF (HSLMODE.EQ.0) then
+          LHSL = 10.0 ! a constant value for testing purposes
+        ELSE
+          ! Get surface layer depth from coupler
+          IX    = MAPSF(ISEA,1)
+          IY    = MAPSF(ISEA,2)
+          LHSL  = HSL(IX,IY)      ! depth over which SD is averaged
+        END IF
+      END IF
       !
       ! 3.a Directional mss parameters
       !     NB: the slope PDF is proportional to ell1=ETYY*EC2-2*ETXY*ECS+ETXX*ES2 = C*EC2-2*B*ECS+A*ES2
@@ -1972,6 +2018,18 @@ CONTAINS
       !
       !       USSX(JSEA)  = USSX(JSEA) + 2*GRAV*ETUSCX(JSEA)/SIG(NK)
       !       USSY(JSEA)  = USSY(JSEA) + 2*GRAV*ETUSCY(JSEA)/SIG(NK)
+
+      ! Add tail contribution for surface and layer averaged Stokes drift
+      IF (LMPENABLED.and.SDTAIL) then
+        USSX(JSEA)  = USSX(JSEA) + 2*GRAV*ETUSCX(JSEA)/SIG(NK)
+        USSY(JSEA)  = USSY(JSEA) + 2*GRAV*ETUSCY(JSEA)/SIG(NK)
+        USSHX(JSEA) = USSHX(JSEA) + 2*GRAV*ETUSCX(JSEA)/SIG(NK)     &
+          *(1.-(1.-4.*LHSL*WN(NK,ISEA))*EXP(-2.*WN(NK,ISEA)*LHSL))    &
+          /6./WN(NK,ISEA)/LHSL
+        USSHY(JSEA)  = USSHY(JSEA) + 2*GRAV*ETUSCY(JSEA)/SIG(NK)    &
+          *(1.-(1.-4.*LHSL*WN(NK,ISEA))*EXP(-2.*WN(NK,ISEA)*LHSL))    &
+          /6./WN(NK,ISEA)/LHSL
+      END IF
       UBS(JSEA) = UBS(JSEA) + FTWL * EBAND/GRAV
     END DO
     !
@@ -2355,7 +2413,7 @@ CONTAINS
     IF (FLOLOC( 8, 7).OR.FLOLOC( 8, 8).OR.FLOLOC( 8, 9)) THEN
       CALL SKEWNESS(A)
     END IF
-    
+
     !
     ! Dominant wave breaking probability
     !
@@ -2531,6 +2589,7 @@ CONTAINS
          TH1M, STH1M, TH2M, STH2M, HSIG, PHICE, TAUICE,&
          STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD, HCMAXD,&
          USSP, TAUOCX, TAUOCY, QKK, SKEW, EMBIA1, EMBIA2
+    USE W3ADATMD, ONLY: USSHX, USSHY
     !/
     USE W3ODATMD, ONLY: NOGRP, NGRPP, UNDEF, NDST, NDSE,     &
          FLOGRD, IPASS => IPASS1, WRITE => WRITE1,   &
@@ -2551,7 +2610,6 @@ CONTAINS
     USE W3WDATMD, ONLY: ICEF, ICEH
 #endif
     !
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -2724,14 +2782,13 @@ CONTAINS
         CALL EXTCDE ( 2 )
       END IF
     END IF
-
     !
     IF ( IPASS.GE.1 .AND. OFILES(1) .EQ. 1) THEN
       I      = LEN_TRIM(FILEXT)
       J      = LEN_TRIM(FNMPRE_LOCAL)
       !
       ! Create TIMETAG for file name using YYYYMMDD.HHMMS prefix
-      WRITE(TIMETAG,"(i8.8,'.'i6.6)")TIME(1),TIME(2)
+      WRITE(TIMETAG, '(i8.8, ".", i6.6)') TIME(1), TIME(2)
 #ifdef W3_T
       WRITE (NDST,9001) FNMPRE_LOCAL(:J)//TIMETAG//'.out_grd.'//FILEXT(:I)
 #endif
@@ -2946,6 +3003,10 @@ CONTAINS
           IF ( FLOGRD( 6, 13) ) THEN
             TAUOCX(ISEA) = UNDEF
             TAUOCY(ISEA) = UNDEF
+          END IF
+          IF ( FLOGRD( 6, 14) ) THEN
+            USSHX (ISEA) = UNDEF
+            USSHY (ISEA) = UNDEF
           END IF
           !
           IF ( FLOGRD( 7, 1) ) THEN
@@ -3556,6 +3617,13 @@ CONTAINS
 #ifdef W3_ASCII
               WRITE ( NDSOA,* ) 'TAUOCY:', TAUOCY(1:NSEA)
 #endif
+            ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 14 ) THEN
+              WRITE ( NDSOG ) USSHX(1:NSEA)
+              WRITE ( NDSOG ) USSHY(1:NSEA)
+#ifdef W3_ASCII
+              WRITE ( NDSOA,* ) 'USSHX:', USSHX(1:NSEA)
+              WRITE ( NDSOA,* ) 'USSHY:', USSHY(1:NSEA)
+#endif
               !
               !     Section 7)
               !
@@ -3938,7 +4006,10 @@ CONTAINS
               READ (NDSOG,IOSTAT=IERR) TAUOCX(1:NSEA)
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IOGO','',42)
               READ (NDSOG,IOSTAT=IERR) TAUOCY(1:NSEA)
-
+            ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 14 ) THEN
+              READ (NDSOG,IOSTAT=IERR) USSHX(1:NSEA)
+              IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IOGO','',42)
+              READ (NDSOG,IOSTAT=IERR) USSHY(1:NSEA)
               !
               !     Section 7)
               !
@@ -4198,7 +4269,6 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-    IMPLICIT NONE
     !/
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -4435,7 +4505,6 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     !
-    IMPLICIT NONE
     !
     !/ ------------------------------------------------------------------- /
     !/ Parameter list
@@ -4636,7 +4705,7 @@ CONTAINS
     !     EXTERNALS.
     !     ----------
     !         VMIN_D
-    !         VPLUS_D          
+    !         VPLUS_D
     !     REFERENCES.
     !     -----------
     !          V E ZAKHAROV(1967)
@@ -4755,7 +4824,7 @@ CONTAINS
         XK1SQ = FAK(M1)**2
         DO K2=1,NTH
           DO K1=1,NTH
-            C22 = FAC0(K1,K2,M1,M2)+B(K1,K2,M1,M2) 
+            C22 = FAC0(K1,K2,M1,M2)+B(K1,K2,M1,M2)
             S22 = B(K1,K2,M1,M2)-FAC0(K1,K2,M1,M2)
             FAC1(K1,K2,M1,M2) = (XK1SQ*ECOS(K1)**2 + XK2SQ*ECOS(K2)**2)*C22    &
                                 -FAK(M1)*FAK(M2)*ECOS(K1)*ECOS(K2)*S22
@@ -4775,7 +4844,7 @@ CONTAINS
       !-----------------------------------------------------------------------
 
       REAL(KIND=4) FUNCTION VMIN_D(XI,XJ,XK,XIJ,XIK,XJK,XOI,XOJ,XOK)
-     
+
         !     PETER JANSSEN
         !     PURPOSE.
         !     --------
@@ -4813,7 +4882,7 @@ CONTAINS
         SQJKI=SQRT(OJ*OK*RI/(OI*RJ*RK))
         VMIN_D=ZCONST*( (XIJ-RI*RJ)*SQIJK + (XIK-RI*RK)*SQIKJ+ (XJK+RJ*RK)*SQJKI )
 
-      END FUNCTION VMIN_D      
+      END FUNCTION VMIN_D
 
       !-----------------------------------------------------------------------
 
@@ -4867,7 +4936,7 @@ CONTAINS
   !> @brief  Determines skewness paramters in order to obtain
   !>         correction on altimeter wave height
   !>
-  !> @details Evaluate deviations from gaussianity following the work 
+  !> @details Evaluate deviations from gaussianity following the work
   !>          of Srokosz and Longuet-Higgins. For second order
   !>          corrections to surface elevation, the approach of
   !>          Zaharov has been used.
@@ -4924,7 +4993,7 @@ CONTAINS
 
     INTEGER :: M, K, M1, K1, M2, K2, I, J
     INTEGER :: MSTART, JSEA
-   
+
     REAL(KIND=4) :: CONX, DELTA
     REAL(KIND=4) :: FH, DELF, XK1
     REAL(KIND=4) :: XPI, XPJ, XPK, XN, CO1
@@ -4934,17 +5003,17 @@ CONTAINS
 
     ! ----------------------------------------------------------------------
 
-    NKHF=NK+13 ! same offset as in ECWAM 
+    NKHF=NK+13 ! same offset as in ECWAM
 
     ALLOCATE(FAC0(NTH,NTH,NKHF,NKHF))
     ALLOCATE(FAC1(NTH,NTH,NKHF,NKHF))
     ALLOCATE(FAC2(NTH,NTH,NKHF,NKHF))
     ALLOCATE(FAC3(NTH,NTH,NKHF,NKHF))
-      
+
     CALL SECONDHH(NKHF,FAC0,FAC1,FAC2,FAC3)
 
     ALLOCATE(F2(NTH,NKHF))
-    ALLOCATE(SIGHF(NKHF), DFIMHF(NKHF), FAK(NKHF)) 
+    ALLOCATE(SIGHF(NKHF), DFIMHF(NKHF), FAK(NKHF))
 
     !     1. COMPUTATION OF FREQUENCY-DIRECTION INCREMENT
     !     -----------------------------------------------
@@ -4968,7 +5037,7 @@ CONTAINS
         SIGHF(M) = XFR*SIGHF(M-1)
       ENDDO
 
-      CO1 = 0.5*(XFR-1.)*DTH*TPIINV 
+      CO1 = 0.5*(XFR-1.)*DTH*TPIINV
       DFIMHF(1) = CO1*SIGHF(1)        ! this is DF*DTH
       DO M=2,NKHF-1
         DFIMHF(M)=CO1*(SIGHF(M)+SIGHF(M-1))
@@ -4979,7 +5048,7 @@ CONTAINS
         FAK(M) = (SIGHF(M))**2/GRAV
       ENDDO
 
-      ! Deals with the tail ... 
+      ! Deals with the tail ...
       DO M=NK+1,NKHF
         FH=(SIGHF(NK)/SIGHF(M))**5
         DO K=1,NTH
@@ -5038,9 +5107,9 @@ CONTAINS
         SKEW(JSEA)=XLAMBDA(3,0,0)
         DELTA = ( XLAMBDA(1,2,0) + XLAMBDA(1,0,2)           &
                   - 2.0*XLAMBDA(0,1,1)*XLAMBDA(1,1,1) )/    &
-                   (1.0 - XLAMBDA(0,1,1)**2)             ! this is called gamma eq. 20 
-        EMBIA1(JSEA)=-0.125*DELTA                             ! EM Bias coefficient 
-        EMBIA2(JSEA)=-0.125*XLAMBDA(3,0,0)/3.0           ! tracker bias (least squares only) 	
+                   (1.0 - XLAMBDA(0,1,1)**2)             ! this is called gamma eq. 20
+        EMBIA1(JSEA)=-0.125*DELTA                             ! EM Bias coefficient
+        EMBIA2(JSEA)=-0.125*XLAMBDA(3,0,0)/3.0           ! tracker bias (least squares only)
       END IF
     END DO  ! end of loop on JSEA
         !
@@ -5049,7 +5118,7 @@ CONTAINS
 #endif
 
     DEALLOCATE(FAC0,FAC1,FAC2,FAC3)
-    DEALLOCATE(F2,SIGHF,DFIMHF,FAK) 
+    DEALLOCATE(F2,SIGHF,DFIMHF,FAK)
 
   END SUBROUTINE SKEWNESS
 

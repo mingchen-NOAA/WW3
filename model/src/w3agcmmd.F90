@@ -79,6 +79,7 @@ MODULE W3AGCMMD
   !
 CONTAINS
   !/ ------------------------------------------------------------------- /
+
   !>
   !> @brief Send coupling fields to atmospheric model.
   !>
@@ -218,6 +219,7 @@ CONTAINS
     !
     !/ ------------------------------------------------------------------- /
   END SUBROUTINE SND_FIELDS_TO_ATMOS
+
   !>
   !> @brief Receive coupling fields from atmospheric model.
   !>

@@ -449,6 +449,12 @@ CONTAINS
 #ifdef W3_UOST
     USE W3UOSTMD, ONLY: UOST_SETGRID
 #endif
+    use w3timemd,        only : set_user_timestring
+    use w3odatmd,        only : logfile_is_assigned
+#ifdef W3_PIO
+    use wav_restart_mod, only : read_restart
+    use w3odatmd,        only : runtype, restart_from_binary, use_restartnc, user_restfname
+#endif
     !/
 #ifdef W3_MPI
     use mpi_f08
@@ -520,6 +526,11 @@ CONTAINS
     CHARACTER(LEN=23)       :: DTME21
     CHARACTER(LEN=30)       :: LFILE, TFILE
     integer                 :: memunit
+#ifdef W3_PIO
+    logical                 :: exists
+    character(len=16)       :: user_timestring    !YYYY-MM-DD-SSSSS
+    character(len=1024)     :: fname
+#endif
     !/
     !/ ------------------------------------------------------------------- /
     !
@@ -665,35 +676,37 @@ CONTAINS
     !
     ! 1.c Open files without unpacking MDS ,,,
     !
-    IE     = LEN_TRIM(FEXT)
-    LFILE  = 'log.' // FEXT(:IE)
-    IFL    = LEN_TRIM(LFILE)
+    if (.not. logfile_is_assigned) then
+      IE     = LEN_TRIM(FEXT)
+      LFILE  = 'log.' // FEXT(:IE)
+      IFL    = LEN_TRIM(LFILE)
 #ifdef W3_SHRD
-    TFILE  = 'test.' // FEXT(:IE)
+      TFILE  = 'test.' // FEXT(:IE)
 #endif
 #ifdef W3_DIST
-    IW     = 1 + INT ( LOG10 ( REAL(NAPROC) + 0.5 ) )
-    IW     = MAX ( 3 , MIN ( 9 , IW ) )
-    WRITE (FORMAT,'(A5,I1.1,A1,I1.1,A4)')                    &
-         '(A4,I', IW, '.', IW, ',2A)'
-    WRITE (TFILE,FORMAT) 'test',                             &
-         OUTPTS(IMOD)%IAPROC, '.', FEXT(:IE)
+      IW     = 1 + INT ( LOG10 ( REAL(NAPROC) + 0.5 ) )
+      IW     = MAX ( 3 , MIN ( 9 , IW ) )
+      WRITE (FORMAT,'(A5,I1.1,A1,I1.1,A4)')                    &
+           '(A4,I', IW, '.', IW, ',2A)'
+      WRITE (TFILE,FORMAT) 'test',                             &
+           OUTPTS(IMOD)%IAPROC, '.', FEXT(:IE)
 #endif
-    IFT    = LEN_TRIM(TFILE)
-    J      = LEN_TRIM(FNMPRE)
-    !
-    IF ( OUTPTS(IMOD)%IAPROC .EQ. OUTPTS(IMOD)%NAPLOG ) THEN
-      OPEN (MDS(1), FILE=FNMPRE(:J)//LFILE(:IFL),IOSTAT=IERR)
-      IF (IERR.NE.0) CALL EXTOPN(NDSE,IERR,'W3INIT','LOG',1)
-    END IF
-    !
-    IF ( MDS(3).NE.MDS(1) .AND. MDS(3).NE.MDS(4) .AND. TSTOUT ) THEN
-      INQUIRE (MDS(3),OPENED=OPENED)
-      IF ( .NOT. OPENED ) THEN
-        OPEN (MDS(3),FILE=FNMPRE(:J)//TFILE(:IFT),IOSTAT=IERR)
-        IF (IERR.NE.0) CALL EXTOPN(NDSE,IERR,'W3INIT','TEST',2)
+      IFT    = LEN_TRIM(TFILE)
+      J      = LEN_TRIM(FNMPRE)
+      !
+      IF ( OUTPTS(IMOD)%IAPROC .EQ. OUTPTS(IMOD)%NAPLOG ) THEN
+        OPEN (MDS(1), FILE=FNMPRE(:J)//LFILE(:IFL),IOSTAT=IERR)
+        IF (IERR.NE.0) CALL EXTOPN(NDSE,IERR,'W3INIT','LOG',1)
       END IF
-    END IF
+      !
+      IF ( MDS(3).NE.MDS(1) .AND. MDS(3).NE.MDS(4) .AND. TSTOUT ) THEN
+        INQUIRE (MDS(3),OPENED=OPENED)
+        IF ( .NOT. OPENED ) THEN
+          OPEN (MDS(3),FILE=FNMPRE(:J)//TFILE(:IFT),IOSTAT=IERR)
+          IF (IERR.NE.0) CALL EXTOPN(NDSE,IERR,'W3INIT','TEST',2)
+        END IF
+      END IF
+    end if ! if (.not. logfile_is_assigned)
     !
     ! 1.d Dataset unit numbers
     !
@@ -733,6 +746,7 @@ CONTAINS
     ! 2.a Read model definition file
     !
     CALL W3IOGR ( 'READ', NDS(5), IMOD, FEXT )
+
     IF (GTYPE .eq. UNGTYPE) THEN
       CALL SPATIAL_GRID
       CALL NVECTRI
@@ -969,40 +983,71 @@ CONTAINS
     ! 3.a Read restart file
     !
     VA(:,:) = 0.
-#ifdef W3_DEBUGCOH
-    CALL ALL_VA_INTEGRAL_PRINT(IMOD, "Before W3IORS call", 1)
+#ifdef W3_PIO
+    if (use_restartnc) then
+      call set_user_timestring(time,user_timestring)
+      if (restart_from_binary) then
+        fname = trim(user_restfname)//trim(user_timestring)
+      else
+        fname = trim(user_restfname)//trim(user_timestring)//'.nc'
+      endif
+      inquire(file=trim(fname), exist=exists)
+      if (exists) then
+        if (restart_from_binary) then
+          call w3iors('READ', nds(6), sig(nk), imod, filename=trim(fname))
+        else
+          call read_restart(trim(fname), va=va, mapsta=mapsta, mapst2=mapst2)
+        end if
+      else
+        if (runtype == 'continue') then
+          call extcde (60, msg="required restart file " // trim(fname) // " does not exist")
+        elseif (restart_from_binary) then 
+          call extcde (60, msg="required restart file " // trim(fname) // " does not exist")
+        else 
+          call read_restart('none')
+         ! mapst2 is module variable defined in read of mod_def; maptst is from 2.b above
+         flcold = .true.
+        endif 
+      end if
+    else
 #endif
-#ifdef W3_TIMINGS
-    CALL PRINT_MY_TIME("Before W3IORS")
-#endif
-    CALL W3IORS ( 'READ', NDS(6), SIG(NK), IMOD)
-#ifdef W3_TIMINGS
-    CALL PRINT_MY_TIME("After W3IORS")
-#endif
-    call print_memcheck(memunit, 'memcheck_____:'//' WW3_INIT SECTION 3a')
 
 #ifdef W3_DEBUGCOH
-    CALL ALL_VA_INTEGRAL_PRINT(IMOD, "After W3IORS call", 1)
+      CALL ALL_VA_INTEGRAL_PRINT(IMOD, "Before W3IORS call", 1)
 #endif
-    FLCOLD = RSTYPE.LE.1  .OR. RSTYPE.EQ.4
-    IF ( IAPROC .EQ. NAPLOG ) THEN
-      IF (RSTYPE.EQ.0) THEN
-        WRITE (NDSO,930) 'cold start (idealized).'
-      ELSE IF ( RSTYPE .EQ. 1 ) THEN
-        WRITE (NDSO,930) 'cold start (wind).'
-      ELSE IF ( RSTYPE .EQ. 4 ) THEN
-        WRITE (NDSO,930) 'cold start (calm).'
-      ELSE
-        WRITE (NDSO,930) 'full restart.'
+#ifdef W3_TIMINGS
+      CALL PRINT_MY_TIME("Before W3IORS")
+#endif
+      CALL W3IORS ( 'READ', NDS(6), SIG(NK), IMOD)
+#ifdef W3_TIMINGS
+      CALL PRINT_MY_TIME("After W3IORS")
+#endif
+      call print_memcheck(memunit, 'memcheck_____:'//' WW3_INIT SECTION 3a')
+
+#ifdef W3_DEBUGCOH
+      CALL ALL_VA_INTEGRAL_PRINT(IMOD, "After W3IORS call", 1)
+#endif
+      FLCOLD = RSTYPE.LE.1  .OR. RSTYPE.EQ.4
+      IF ( IAPROC .EQ. NAPLOG ) THEN
+        IF (RSTYPE.EQ.0) THEN
+          WRITE (NDSO,930) 'cold start (idealized).'
+        ELSE IF ( RSTYPE .EQ. 1 ) THEN
+          WRITE (NDSO,930) 'cold start (wind).'
+        ELSE IF ( RSTYPE .EQ. 4 ) THEN
+          WRITE (NDSO,930) 'cold start (calm).'
+        ELSE
+          WRITE (NDSO,930) 'full restart.'
+        END IF
       END IF
-    END IF
 #ifdef W3_DEBUGCOH
-    CALL ALL_VA_INTEGRAL_PRINT(IMOD, "W3INIT, step 4.2", 1)
+      CALL ALL_VA_INTEGRAL_PRINT(IMOD, "W3INIT, step 4.2", 1)
 #endif
 #ifdef W3_TIMINGS
-    CALL PRINT_MY_TIME("After restart inits")
+      CALL PRINT_MY_TIME("After restart inits")
 #endif
-
+#ifdef W3_PIO
+    end if ! if (use_restartnc)
+#endif
     !
     ! 3.b Compare MAPSTA from grid and restart
     !
@@ -1256,11 +1301,11 @@ CONTAINS
     !
     ! 4.d Preprocessing for point output.
     !
-#ifdef W3_MPI    
+#ifdef W3_MPI
     IF ( FLOUT(2) ) CALL W3IOPP ( NPT, XPT, YPT, PNAMES, IMOD, MPI_COMM_WAVE )
-#else 
+#else
     IF ( FLOUT(2) ) CALL W3IOPP ( NPT, XPT, YPT, PNAMES, IMOD, 1 )
-#endif 
+#endif
 #ifdef W3_PDLIB
     CALL DEALLOCATE_PDLIB_GLOBAL(IMOD)
 #endif
@@ -1284,7 +1329,6 @@ CONTAINS
     !
     MAPTST = MOD(MAPST2/2,2)
     MAPST2 = MAPST2 - 2*MAPTST
-
     !
     !Li   For multi-resolution SMC grid, these 1-NX and 1-NY nested loops
     !Li   may miss the refined cells as they are not 1-1 corresponding to
@@ -1358,12 +1402,10 @@ CONTAINS
       CALL SET_IOBDP_PDLIB
     ENDIF
 #endif
-
     !
 #ifdef W3_DEBUGCOH
     CALL ALL_VA_INTEGRAL_PRINT(IMOD, "W3INIT, step 8.2", 1)
 #endif
-
     !
     MAPST2 = MAPST2 + 2*MAPTST
     !
@@ -1437,7 +1479,6 @@ CONTAINS
         !
       END DO
     END DO
-
     !
     ! 6.  Initialize arrays ---------------------------------------------- /
     !     Some initialized in W3IORS
@@ -1454,7 +1495,7 @@ CONTAINS
     !
     ! 7.  Write info to log file ----------------------------------------- /
     !
-    IF ( IAPROC .EQ. NAPLOG ) THEN
+    IF ( IAPROC .EQ. NAPLOG) THEN
       !
       WRITE (NDSO,970) GNAME
       IF (   FLLEV    ) WRITE (NDSO,971) 'Prescribed'
@@ -1541,7 +1582,9 @@ CONTAINS
         WRITE (NDSO,990) DTME21
       END IF
       !
-      WRITE (NDSO,984)
+      if (.not. logfile_is_assigned) then
+        WRITE (NDSO,984)
+      end if
       !
     END IF
     !
@@ -1789,7 +1832,6 @@ CONTAINS
 #endif
     !
     USE W3ADATMD, ONLY: NSEALM
-    USE W3GDATMD, ONLY: UNGTYPE
 #ifdef W3_DIST
     USE CONSTANTS, ONLY: LPDLIB
 #endif
@@ -2177,9 +2219,10 @@ CONTAINS
          ABPOS, NRQTR, IRQTR, IT0PNT, IT0TRK,                 &
          IT0PRT, NOSWLL, NOEXTR, NDSE, IOSTYP, FLOGR2
     USE W3PARALL, ONLY : INIT_GET_JSEA_ISPROC
+    USE W3ADATMD, ONLY: USSHX, USSHY
     USE CONSTANTS, ONLY: LPDLIB
+    use w3odatmd, only : restart_from_binary, use_restartnc, use_historync
 #endif
-    USE W3GDATMD, ONLY: UNGTYPE
     !/
 #ifdef W3_MPI
     use mpi_f08
@@ -2206,6 +2249,7 @@ CONTAINS
 #ifdef W3_MPI
     LOGICAL                 :: FLGRDALL(NOGRP,NGRPP)
     LOGICAL                 :: FLGRDARST(NOGRP,NGRPP)
+    logical                 :: do_rstsetup
 #endif
 #ifdef W3_MPIT
     CHARACTER(LEN=5)      :: STRING
@@ -2233,7 +2277,7 @@ CONTAINS
     IROOT  = NAPFLD - 1
     !
     !
-    IF ((FLOUT(1) .OR. FLOUT(7)) .and. (.not. LPDLIB)) THEN
+    IF ((FLOUT(1) .OR. FLOUT(7)) .and. (.not. LPDLIB) .and. (.not. use_historync)) THEN
       !
       ! NRQMAX is the maximum number of output fields that require MPI communication,
       ! aimed to gather field values stored in each processor into one processor in
@@ -2253,7 +2297,7 @@ CONTAINS
            0                 +    0  +    0  +  &  ! group 3 (extra contributions below)
            2+(NOGE(4)-2)*(NOSWLL+1) +    0  +    0  +  &  ! group 4
            11                +    3  +    1  +  &  ! group 5
-           12                +    7  +    1  +  &  ! group 6 (extra contributions below)
+           10                +    7  +    1  +  &  ! group 6 (extra contributions below)
            5                 +    4  +    1  +  &  ! group 7
            5                 +    2  +    0  +  &  ! group 8
            5                 +    0  +    0  +  &  ! group 9
@@ -2267,6 +2311,7 @@ CONTAINS
       IF ( FLGRDALL( 6,9)) NRQMAX = NRQMAX + P2MSF(3) - P2MSF(2) + 1
       IF ( FLGRDALL( 6, 8) ) NRQMAX = NRQMAX + 2*NK
       IF ( FLGRDALL( 6,12) ) NRQMAX = NRQMAX + 2*NK
+      IF ( FLGRDALL( 6,14) ) NRQMAX = NRQMAX + 2
       !
       IF ( NRQMAX .GT. 0 ) THEN
         ALLOCATE ( OUTPTS(IMOD)%OUT1%IRQGO(NRQMAX) )
@@ -3067,6 +3112,22 @@ CONTAINS
 #endif
         END IF
         !
+        IF ( FLGRDALL( 6, 14) ) THEN
+          IH     = IH + 1
+          IT     = IT + 1
+          CALL MPI_SEND_INIT (USSHX (1),NSEALM , MPI_REAL, IROOT,   &
+               IT, MPI_COMM_WAVE, IRQGO(IH), IERR)
+#ifdef W3_MPIT
+          WRITE (NDST,9011) IH, ' 6/14', IROOT, IT, IRQGO(IH), IERR
+#endif
+          IH     = IH + 1
+          IT     = IT + 1
+          CALL MPI_SEND_INIT (USSHY (1),NSEALM , MPI_REAL, IROOT,   &
+               IT, MPI_COMM_WAVE, IRQGO(IH), IERR)
+#ifdef W3_MPIT
+          WRITE (NDST,9011) IH, ' 6/14', IROOT, IT, IRQGO(IH), IERR
+#endif
+        END IF
         IF ( FLGRDALL( 7, 1) ) THEN
           IH     = IH + 1
           IT     = IT + 1
@@ -4136,6 +4197,23 @@ CONTAINS
 #endif
           END IF
           !
+          IF ( FLGRDALL( 6, 14) ) THEN
+            IH     = IH + 1
+            IT     = IT + 1
+            CALL MPI_RECV_INIT (USSHX (I0),1,WW3_FIELD_VEC, IFROM, IT,  &
+                 MPI_COMM_WAVE, IRQGO2(IH), IERR )
+#ifdef W3_MPIT
+            WRITE (NDST,9011) IH, ' 6/14', IFROM, IT, IRQGO2(IH), IERR
+#endif
+            IH     = IH + 1
+            IT     = IT + 1
+            CALL MPI_RECV_INIT (USSHY (I0),1,WW3_FIELD_VEC, IFROM, IT,  &
+                 MPI_COMM_WAVE, IRQGO2(IH), IERR )
+#ifdef W3_MPIT
+            WRITE (NDST,9011) IH, ' 6/14', IFROM, IT, IRQGO2(IH), IERR
+#endif
+          END IF
+          !
           IF ( FLGRDALL( 7, 1) ) THEN
             IH     = IH + 1
             IT     = IT + 1
@@ -4406,7 +4484,7 @@ CONTAINS
         CALL EXTCDE (11)
       END IF
       !
-    END IF ! IF ((FLOUT(1) .OR. FLOUT(7)) .and. (.not. LPDLIB)) THEN
+    END IF ! IF ((FLOUT(1) .OR. FLOUT(7)) .and. (.not. LPDLIB) .and. (.not. use_historync)) THEN
     !
     ! 2.  Set-up for W3IORS ---------------------------------------------- /
     ! 2.a General preparations
@@ -4415,7 +4493,17 @@ CONTAINS
     IH     = 0
     IROOT  = NAPRST - 1
     !
-    IF ((FLOUT(4) .OR. FLOUT(8)) .and. (.not. LPDLIB)) THEN
+    if (use_restartnc) then
+      if (restart_from_binary) then
+        do_rstsetup = .true.
+      else
+        do_rstsetup = .false.
+      end if
+    else
+      do_rstsetup = .true.
+    end if
+    !
+    IF ((FLOUT(4) .OR. FLOUT(8)) .and. (.not. LPDLIB) .and. do_rstsetup) THEN
       IF (OARST) THEN
         ALLOCATE ( OUTPTS(IMOD)%OUT4%IRQRS(34*NAPROC) )
       ELSE
@@ -5145,7 +5233,7 @@ CONTAINS
         !
       END IF
       !
-    END IF ! IF ((FLOUT(4) .OR. FLOUT(8)) .and. (.not. LPDLIB)) THEN
+    END IF ! IF ((FLOUT(4) .OR. FLOUT(8)) .and. (.not. LPDLIB) .and. do_rstsetup) THEN
     !
     ! 3.  Set-up for W3IOBC ( SENDs ) ------------------------------------ /
     !
