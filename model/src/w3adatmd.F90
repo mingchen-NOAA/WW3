@@ -174,6 +174,8 @@ MODULE W3ADATMD
   !      US3D      R.A.  Public   3D Stokes drift.
   !      USSP      R.A.  Public   Partitioned Surface Stokes drift
   !
+  !      USSHX/Y   R.A.  Public   Surface layer averaged Stokes drift.
+  !
   !      ABA       R.A.  Public   Near-bottom rms wave ex. amplitude.
   !      ABD       R.A.  Public   Corresponding direction.
   !      UBA       R.A.  Public   Near-bottom rms wave velocity.
@@ -466,6 +468,7 @@ MODULE W3ADATMD
          XPRMS(:), XTPMS(:), XPHICE(:),       &
          XTAUICE(:,:)
     REAL, POINTER         :: XP2SMS(:,:), XUS3D(:,:), XUSSP(:,:)
+    REAL, POINTER         :: XUSSHX(:), XUSSHY(:)
     !
     ! Output fields group 7)
     !
@@ -482,7 +485,7 @@ MODULE W3ADATMD
          MSCX(:),  MSCY(:),  MSCD(:), QKK(:), SKEW(:), EMBIA1(:), EMBIA2(:)
     REAL, POINTER         ::  XMSSX(:), XMSSY(:), XMSSD(:),       &
          XMSCX(:), XMSCY(:), XMSCD(:), XQKK(:),                   &
-         XSKEW(:), XEMBIA1(:), XEMBIA2(:)    
+         XSKEW(:), XEMBIA1(:), XEMBIA2(:)
     !
     ! Output fields group 9)
     !
@@ -495,6 +498,8 @@ MODULE W3ADATMD
     !
     REAL, POINTER         ::  USERO(:,:)
     REAL, POINTER         :: XUSERO(:,:)
+    ! Output fileds for Langmuir mixing parameterization
+    REAL, POINTER         :: USSHX(:), USSHY(:)
     !
     ! Spatial derivatives
     !
@@ -575,6 +580,8 @@ MODULE W3ADATMD
   !/
   !/ Data aliases for structure WADAT(S)
   !/
+  REAL, POINTER :: USSHX(:), USSHY(:)
+  !
   REAL, POINTER           :: CG(:,:), WN(:,:)
   REAL, POINTER           :: IC3WN_R(:,:), IC3WN_I(:,:), IC3CG(:,:)
   !
@@ -933,6 +940,7 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
+    use w3odatmd, only : use_cmeps
     !
     !/
     !/ ------------------------------------------------------------------- /
@@ -944,10 +952,11 @@ CONTAINS
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
     !/
-    INTEGER                 :: JGRID, NXXX
-    integer :: memunit
+    INTEGER       :: JGRID, NXXX
+    integer       :: memunit
+    integer       :: allocsize
 #ifdef W3_S
-    INTEGER, SAVE           :: IENT = 0
+    INTEGER, SAVE :: IENT = 0
     CALL STRACE (IENT, 'W3DIMA')
 #endif
     !
@@ -1052,6 +1061,7 @@ CONTAINS
          WADATS(IMOD)%WNMEAN(NSEALM),                               &
          STAT=ISTAT )
     CHECK_ALLOC_STATUS ( ISTAT )
+
     !
     WADATS(IMOD)%HS     = UNDEF
     WADATS(IMOD)%WLM    = UNDEF
@@ -1201,6 +1211,8 @@ CONTAINS
          WADATS(IMOD)%TPMS  (NSEALM) ,                        &
          WADATS(IMOD)%PHICE (NSEALM) ,                        &
          WADATS(IMOD)%TAUICE(NSEALM,2),                       &
+         WADATS(IMOD)%USSHX(NSEALM),                          &
+         WADATS(IMOD)%USSHY(NSEALM),                          &
          STAT=ISTAT )
     CHECK_ALLOC_STATUS ( ISTAT )
     !
@@ -1237,6 +1249,8 @@ CONTAINS
     WADATS(IMOD)%TPMS   = UNDEF
     WADATS(IMOD)%PHICE  = UNDEF
     WADATS(IMOD)%TAUICE = UNDEF
+    WADATS(IMOD)%USSHX  = UNDEF
+    WADATS(IMOD)%USSHY  = UNDEF
     IF (  P2MSF(1).GT.0 ) WADATS(IMOD)%P2SMS  = UNDEF
     IF (  US3DF(1).GT.0 ) WADATS(IMOD)%US3D   = UNDEF
     IF (  USSPF(1).GT.0 ) WADATS(IMOD)%USSP   = UNDEF
@@ -1329,40 +1343,44 @@ CONTAINS
       ALLOCATE (WADATS(IMOD)%IC3CG(0:NK+1,0:300), STAT=ISTAT )
       CHECK_ALLOC_STATUS ( ISTAT )
 #endif
-
+      if (use_cmeps) then
+         allocsize = 1
+      else
+         allocsize = nsea
+      end if
       !
       IF ( FLCUR  ) THEN
-        ALLOCATE ( WADATS(IMOD)%CA0(NSEA) , &
-             WADATS(IMOD)%CAI(NSEA) ,       &
-             WADATS(IMOD)%CD0(NSEA) ,       &
-             WADATS(IMOD)%CDI(NSEA) ,       &
+        ALLOCATE ( WADATS(IMOD)%CA0(allocsize) , &
+             WADATS(IMOD)%CAI(allocsize) ,       &
+             WADATS(IMOD)%CD0(allocsize) ,       &
+             WADATS(IMOD)%CDI(allocsize) ,       &
              STAT=ISTAT )
         CHECK_ALLOC_STATUS ( ISTAT )
       END IF
       !
       IF ( FLWIND ) THEN
-        ALLOCATE ( WADATS(IMOD)%UA0(NSEA) , &
-             WADATS(IMOD)%UAI(NSEA) ,       &
-             WADATS(IMOD)%UD0(NSEA) ,       &
-             WADATS(IMOD)%UDI(NSEA) ,       &
-             WADATS(IMOD)%AS0(NSEA) ,       &
-             WADATS(IMOD)%ASI(NSEA) ,       &
+        ALLOCATE ( WADATS(IMOD)%UA0(allocsize) , &
+             WADATS(IMOD)%UAI(allocsize) ,       &
+             WADATS(IMOD)%UD0(allocsize) ,       &
+             WADATS(IMOD)%UDI(allocsize) ,       &
+             WADATS(IMOD)%AS0(allocsize) ,       &
+             WADATS(IMOD)%ASI(allocsize) ,       &
              STAT=ISTAT )
         CHECK_ALLOC_STATUS ( ISTAT )
       END IF
       !
       IF ( FLTAUA  ) THEN
-        ALLOCATE ( WADATS(IMOD)%MA0(NSEA) , &
-             WADATS(IMOD)%MAI(NSEA) ,       &
-             WADATS(IMOD)%MD0(NSEA) ,       &
-             WADATS(IMOD)%MDI(NSEA) ,       &
+        ALLOCATE ( WADATS(IMOD)%MA0(allocsize) , &
+             WADATS(IMOD)%MAI(allocsize) ,       &
+             WADATS(IMOD)%MD0(allocsize) ,       &
+             WADATS(IMOD)%MDI(allocsize) ,       &
              STAT=ISTAT )
         CHECK_ALLOC_STATUS ( ISTAT )
       END IF
       !
       IF ( FLRHOA  ) THEN
-        ALLOCATE ( WADATS(IMOD)%RA0(NSEA) , &
-             WADATS(IMOD)%RAI(NSEA) ,       &
+        ALLOCATE ( WADATS(IMOD)%RA0(allocsize) , &
+             WADATS(IMOD)%RAI(allocsize) ,       &
              STAT=ISTAT )
         CHECK_ALLOC_STATUS ( ISTAT )
       END IF
@@ -2154,6 +2172,17 @@ CONTAINS
       ALLOCATE ( WADATS(IMOD)%XTAUOCY(1), STAT=ISTAT )
       CHECK_ALLOC_STATUS ( ISTAT )
     END IF
+    IF ( OUTFLAGS( 6, 14) ) THEN
+      ALLOCATE ( WADATS(IMOD)%XUSSHX(NXXX), STAT=ISTAT )
+      CHECK_ALLOC_STATUS ( ISTAT )
+      ALLOCATE ( WADATS(IMOD)%XUSSHY(NXXX), STAT=ISTAT )
+      CHECK_ALLOC_STATUS ( ISTAT )
+    ELSE
+      ALLOCATE ( WADATS(IMOD)%XUSSHX(1), STAT=ISTAT )
+      CHECK_ALLOC_STATUS ( ISTAT )
+      ALLOCATE ( WADATS(IMOD)%XUSSHY(1), STAT=ISTAT )
+      CHECK_ALLOC_STATUS ( ISTAT )
+    END IF
     !
     WADATS(IMOD)%XSXX    = UNDEF
     WADATS(IMOD)%XSYY    = UNDEF
@@ -2175,6 +2204,8 @@ CONTAINS
     WADATS(IMOD)%XUSSP   = UNDEF
     WADATS(IMOD)%XTAUOCX = UNDEF
     WADATS(IMOD)%XTAUOCY = UNDEF
+    WADATS(IMOD)%XUSSHX   = UNDEF
+    WADATS(IMOD)%XUSSHY   = UNDEF
     !
     IF ( OUTFLAGS( 7, 1) ) THEN
       ALLOCATE ( WADATS(IMOD)%XABA(NXXX), STAT=ISTAT )
@@ -2939,6 +2970,8 @@ CONTAINS
       USERO  => WADATS(IMOD)%USERO
       !
       WN     => WADATS(IMOD)%WN
+      USSHX  => WADATS(IMOD)%USSHX
+      USSHY  => WADATS(IMOD)%USSHY
 #ifdef W3_IC3
       IC3WN_R=> WADATS(IMOD)%IC3WN_R
       IC3WN_I=> WADATS(IMOD)%IC3WN_I
@@ -3278,6 +3311,9 @@ CONTAINS
       CFLKMAX =>  WADATS(IMOD)%XCFLKMAX
       !
       USERO  => WADATS(IMOD)%XUSERO
+      !
+      USSHX   => WADATS(IMOD)%XUSSHX
+      USSHY   => WADATS(IMOD)%XUSSHY
       !
     END IF
     !

@@ -526,7 +526,6 @@ CONTAINS
     IF (INFLAGS2(-2)) ICECOEF6 = MUDD(IX,IY) ! a.k.a. MDN
     IF (INFLAGS2(-1)) ICECOEF7 = MUDT(IX,IY) ! a.k.a. MTH
     IF (INFLAGS2(0 )) ICECOEF8 = MUDV(IX,IY) ! a.k.a. MVS
-
     IC4METHOD = IC4PARS(1)
     !
 #ifdef W3_T38

@@ -116,7 +116,7 @@ CONTAINS
   SUBROUTINE W3IOGR ( INXOUT, NDSM, IMOD, FEXT &
 #ifdef W3_ASCII
                       ,NDSA                    &
-#endif          
+#endif
           )
     !/
     !/                  +-----------------------------------+
@@ -856,7 +856,7 @@ CONTAINS
         !Init COUNTCON and IOBDP to zero, it needs to be set somewhere or
         !removed
         COUNTCON=0
-        IOBDP=0  
+        IOBDP=0
         WRITE (NDSM)                                          &
              X0, Y0, SX, SY, DXYMAX, XGRD, YGRD, TRIGP, TRIA, &
              LEN, IEN, ANGLE0, ANGLE, SI, MAXX, MAXY,         &
@@ -1181,6 +1181,17 @@ CONTAINS
          FTWL, FACTI1, FACTI2, FACHFA, FACHFE
 #endif
     !
+    ! Langmuir mixing parameterization --------------
+    IF ( WRITE ) THEN
+      WRITE (NDSM)                                                &
+        LMPENABLED, SDTAIL, HSLMODE
+      ELSE
+        READ (NDSM,IOSTAT=IERR)                                   &
+             LMPENABLED, SDTAIL, HSLMODE
+        IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IOGR','mod_def.'//FILEXT(:IEXT),51)
+    END IF
+
+    ! --------------
     !
     ! Output flags for 3D parameters ------------------------------------- *
     !                                                 Module W3GDATMD
@@ -1284,7 +1295,7 @@ CONTAINS
            WWCOR
 #ifdef W3_ASCII
       WRITE (NDSA,*)                                             &
-           'WWCOR:',                                             &  
+           'WWCOR:',                                             &
            WWCOR
 #endif
 #endif
@@ -1584,7 +1595,7 @@ CONTAINS
                      TAUT, TAUHFT:',                         &
                      DELUST, DELTAIL, DELTAUW, DELU, DELALP, &
                      TAUT, TAUHFT
-        IF (TTAUWSHELTER.GT.0) WRITE (NDSA,*) 'TAUHFT2:', TAUHFT2 
+        IF (TTAUWSHELTER.GT.0) WRITE (NDSA,*) 'TAUHFT2:', TAUHFT2
 #endif
       END IF
     ELSE

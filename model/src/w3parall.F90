@@ -1078,7 +1078,6 @@ CONTAINS
     !/
     !/ ------------------------------------------------------------------- /
 #ifdef W3_PDLIB
-    use yowRankModule, only : rank
     USE W3GDATMD, ONLY: GTYPE, UNGTYPE
 #endif
 #ifdef W3_DIST
@@ -1203,7 +1202,6 @@ CONTAINS
     USE W3GDATMD, ONLY: UNGTYPE
 #ifdef W3_PDLIB
     USE yowRankModule, only : IPGL_TO_PROC
-    use yowNodepool, only: ipgl, iplg
     USE W3ODATMD, ONLY: IAPROC
     USE W3GDATMD, ONLY: MAPSF
     USE CONSTANTS, ONLY : LPDLIB
@@ -1317,7 +1315,6 @@ CONTAINS
     USE CONSTANTS, ONLY : LPDLIB
 #ifdef W3_PDLIB
     USE yowRankModule, only : IPGL_npa
-    use yowNodepool, only: ipgl, iplg
     USE W3GDATMD, ONLY: MAPSF, GTYPE
 #endif
     IMPLICIT NONE
@@ -1468,9 +1465,6 @@ CONTAINS
     !/
     !/ ------------------------------------------------------------------- /
     !
-#ifdef W3_PDLIB
-    USE YOWNODEPOOL, ONLY: iplg
-#endif
     IMPLICIT NONE
 #ifdef W3_S
     INTEGER, SAVE           :: IENT = 0
