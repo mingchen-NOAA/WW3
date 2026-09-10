@@ -2,6 +2,7 @@ spack:
   packages:
     all:
       compiler: [intel]
+      target: [x86_64_v3]
       providers:
         mpi: [intel-oneapi-mpi]
   specs:
