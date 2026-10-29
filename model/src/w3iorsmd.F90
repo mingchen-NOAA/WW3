@@ -310,6 +310,7 @@ CONTAINS
 #ifdef W3_WRST
     USE W3IDATMD, ONLY: WXN, WYN, W3SETI
     USE W3IDATMD, ONLY: WXNwrst, WYNwrst
+    USE W3IDATMD, ONLY: WX0, WY0, TW0, TWN
 #endif
     USE W3ODATMD, ONLY: NDSE, NDST, IAPROC, NAPROC, NAPERR, NAPRST, &
          IFILE => IFILE4, FNMPRE, FNMRST, IOSTYP,    &
@@ -960,9 +961,20 @@ CONTAINS
               WRITE (NDSR,POS=RPOS,IOSTAT=IERR) WRITEBUFF
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
                                          ISWRITE=.TRUE.,POS=RPOS)
-              WRITE (NDSR,POS=RPOS,IOSTAT=IERR)       &
-                   (WXN(IX,IYL),IYL=1+(IPART-1)*NSIZE,         &
-                   MIN(NY,IPART*NSIZE))
+
+              IF (ALL(TIME.EQ.TW0) .AND. &
+                  .NOT.ALL(TIME.EQ.TWN)) THEN
+                WRITE (NDSR,POS=RPOS,IOSTAT=IERR)             &
+                     (WX0(IX,IYL),IYL=1+(IPART-1)*NSIZE,     &
+                     MIN(NY,IPART*NSIZE))
+              ELSE
+                WRITE (NDSR,POS=RPOS,IOSTAT=IERR)             &
+                     (WXN(IX,IYL),IYL=1+(IPART-1)*NSIZE,     &
+                     MIN(NY,IPART*NSIZE))
+              END IF
+
+
+
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
                                          ISWRITE=.TRUE.,POS=RPOS)
             END DO
@@ -974,9 +986,18 @@ CONTAINS
               WRITE (NDSR,POS=RPOS,IOSTAT=IERR) WRITEBUFF
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
                                          ISWRITE=.TRUE.,POS=RPOS)
-              WRITE (NDSR,POS=RPOS,IOSTAT=IERR)       &
-                   (WYN(IX,IYL),IYL=1+(IPART-1)*NSIZE,         &
-                   MIN(NY,IPART*NSIZE))
+
+              IF (ALL(TIME.EQ.TW0) .AND. &
+                  .NOT.ALL(TIME.EQ.TWN)) THEN
+                WRITE (NDSR,POS=RPOS,IOSTAT=IERR)             &
+                     (WY0(IX,IYL),IYL=1+(IPART-1)*NSIZE,     &
+                     MIN(NY,IPART*NSIZE))
+              ELSE
+                WRITE (NDSR,POS=RPOS,IOSTAT=IERR)             &
+                     (WYN(IX,IYL),IYL=1+(IPART-1)*NSIZE,     &
+                     MIN(NY,IPART*NSIZE))
+              END IF
+
               IF (IERR.NE.0) CALL EXTIOF(NDSE,IERR,'W3IORS','',31, &
                                          ISWRITE=.TRUE.,POS=RPOS)
             END DO
