@@ -337,6 +337,7 @@ CONTAINS
 #endif
 #ifdef W3_PDLIB
     USE PDLIB_FIELD_VEC
+    USE yowNodepool, ONLY: PDLIB_NP => np
 #endif
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
@@ -678,6 +679,13 @@ CONTAINS
         IF ( .NOT.IOSFLG .OR. (NAPROC.EQ.1.AND.NAPRST.EQ.1) ) THEN
 #ifdef W3_MPI
           DO JSEA=1, NSEAL
+
+#ifdef W3_PDLIB
+            IF (LPDLIB) THEN
+              IF (JSEA .GT. PDLIB_NP) CYCLE
+            END IF
+#endif
+
             CALL INIT_GET_ISEA(ISEA, JSEA)
             NREC   = ISEA + 2
             RPOS  = 1_8 + LRECL*(NREC-1_8)
