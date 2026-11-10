@@ -243,6 +243,27 @@ EOF
   echo "  module load $modesmf"                             >> matrix.head
   echo "  module load $modscotch"                           >> matrix.head
   echo "  export METIS_PATH=${metispath}"                   >> matrix.head
+  if [ "$compiler" = "intel" ]; then
+    echo '  export CC=mpiicx'                               >> matrix.head
+    echo '  export CXX=mpiicpx'                             >> matrix.head
+    echo '  export FC=mpiifx'                               >> matrix.head
+    echo '  export I_MPI_CC=icx'                            >> matrix.head
+    echo '  export I_MPI_CXX=icpx'                          >> matrix.head
+    echo '  export I_MPI_FC=ifx'                            >> matrix.head
+  elif [ "$compiler" = "gnu" ]; then
+    echo '  export CC=mpicc'                                >> matrix.head
+    echo '  export CXX=mpic++'                              >> matrix.head
+    if [ -n "$ishercules" ]; then
+      echo '  export FC=mpif90'                             >> matrix.head
+    elif [ -n "$isursa" ]; then
+      echo '  export FC=mpifort'                            >> matrix.head
+      echo '  export MPI_CC=mpicc'                          >> matrix.head
+      echo '  export MPI_CXX=mpic++'                        >> matrix.head
+      echo '  export MPI_FC=mpifort'                        >> matrix.head
+    else
+      echo '  export FC=mpifort'                            >> matrix.head
+    fi
+  fi
   echo "  export path_build_root=$(dirname $main_dir)/regtests/buildmatrix" >> matrix.head
   echo '  [[ -d ${path_build_root} ]] && rm -rf ${path_build_root}'         >> matrix.head
   echo ' '
