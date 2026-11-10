@@ -53,15 +53,15 @@ EOF
 # Module Versions from spack-stack that are common for all platforms
   modnetcdfc='netcdf-c/4.9.2'
   modnetcdff='netcdf-fortran/4.6.1'
-  modjasper='jasper/2.0.32'
+  modjasper='jasper/4.2.4'
   modzlib='zlib/1.2.13'
   modpng='libpng/1.6.37'
-  modhdf5='hdf5/1.14.3'
-  modbacio='bacio/2.4.1'
+  modhdf5='hdf5/1.14.5'
+  modbacio='bacio/2.6.0'
   modg2='g2/3.5.1'
-  modw3emc='w3emc/2.10.0'
+  modw3emc='w3emc/2.13.0'
   modesmf='esmf/8.8.0'
-  modscotch='scotch/7.0.4'
+  modscotch='scotch/7.0.10'
 
 # Set batchq queue, choose modules and other custom variables to fit system and
 # to define headers etc (default to original version if empty)
@@ -138,19 +138,18 @@ EOF
     batchq='slurm'
     if [ $compiler = "intel" ]
     then
-      spackstackpath='/contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.2.1/install/modulefiles/Core'
-      spackstackpath2='/contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.2.1/install/modulefiles/intel-oneapi-mpi/2021.13-haww6b3/gcc/12.4.0'
-      modcomp='stack-oneapi/2024.2.1'
-      modmpi='stack-intel-oneapi-mpi/2021.13'
-      metispath='/scratch4/NCEPDEV/marine/Ming.Chen/apps/parmetis/parmetis_intel/ursa/parmetis-4.0.3/install'
-      modcmake='cmake/3.27.9'
+      spackstackpath='/contrib/spack-stack/spack-stack-2.1.1/envs/ue-oneapi-2025.3.1/modules/Core'
+      modcomp='stack-intel-oneapi-compilers/2025.3.1'
+      modmpi='stack-intel-oneapi-mpi/2021.17'
+      metispath='/scratch3/NCEPDEV/climate/Ming.Chen/parmetis/parmetis_intel/parmetis-4.0.3/install'
+      modcmake='cmake/3.31.8'
     elif [ $compiler = "gnu" ]
     then
-      spackstackpath='/contrib/spack-stack/spack-stack-1.9.2/envs/ue-gcc-12.4.0/install/modulefiles/Core'
+      spackstackpath='/contrib/spack-stack/spack-stack-2.1.1/envs/ue-gcc-12.4.0/modules/Core'
       modcomp='stack-gcc/12.4.0'
       modmpi='stack-openmpi/4.1.6'
-      metispath='/scratch4/NCEPDEV/marine/Ming.Chen/apps/parmetis/parmetis_gnu/ursa/parmetis-4.0.3/install'
-      modcmake='cmake/3.27.9'
+      metispath='/scratch3/NCEPDEV/climate/Ming.Chen/parmetis/parmetis_gnu/parmetis-4.0.3/install'
+      modcmake='cmake/3.31.8'
     else
       echo "Compiler $compiler not supported on ursa"
       exit 1
