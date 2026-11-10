@@ -115,20 +115,19 @@ EOF
     batchq='slurm'
     if [ $compiler = "intel" ]
     then
-      spackstackpath='/apps/contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.1.0/install/modulefiles/Core'
-      spackstackpath2='/apps/contrib/spack-stack/spack-stack-1.9.2/envs/ue-oneapi-2024.1.0/install/modulefiles/intel-oneapi-mpi/2021.13-sqiixt7/gcc/13.3.0'
-      modcomp='stack-oneapi/2024.2.1'
-      modmpi='stack-intel-oneapi-mpi/2021.13'
-      metispath='/work/noaa/marine/Ming.Chen/apps/parmetis/parmetis_intel/hercules/parmetis-4.0.3/install'
-      modcmake='cmake/3.27.9'
+      spackstackpath='/apps/contrib/spack-stack/spack-stack-2.1.1/envs/ue-oneapi-2025.3.1/modules/Core'
+      spackstackpath2='/apps/contrib/spack-stack/modulefiles'
+      modcomp='stack-intel-oneapi-compilers/2025.3.1'
+      modmpi='stack-intel-oneapi-mpi/2021.17'
+      metispath='/work/noaa/marine/Ming.Chen/apps/parmetis-4.0.3/parmetis_intel/parmetis-4.0.3/install'
+      modcmake='cmake/3.31.8'
     elif [ $compiler = "gnu" ]
     then
-      spackstackpath='/apps/contrib/spack-stack/spack-stack-1.9.2/envs/ue-gcc-13.3.0/install/modulefiles/Core'
-      spackstackpath2='/apps/contrib/spack-stack/modulefiles'
-      modcomp='stack-gcc/13.3.0'
-      modmpi='stack-openmpi/4.1.6'
-      metispath='/work/noaa/marine/Ming.Chen/apps/parmetis/parmetis_gnu/hercules/parmetis-4.0.3/install'
-      modcmake='cmake/3.27.9'
+      spackstackpath='/apps/contrib/spack-stack/spack-stack-2.1.1/envs/ue-gcc-12.2.0/modules/Core'
+      modcomp='stack-gcc/12.2.0'
+      modmpi='stack-openmpi/4.1.4'
+      metispath='/work/noaa/marine/Ming.Chen/apps/parmetis-4.0.3/parmetis_gnu/parmetis-4.0.3/install'
+      modcmake='cmake/3.31.8'
     else
       echo "Compiler $compiler not supported on hercules"
       exit 1
