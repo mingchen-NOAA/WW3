@@ -66,11 +66,16 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "^(Intel)$")
     set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -c <TARGET>")
   endif()
 
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "IntelLLVM")
+  set(compile_flags -no-fma -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias)
+  set(compile_flags_release -O3)
+  set(compile_flags_debug -O0 "SHELL:-debug all" "SHELL:-warn all" "SHELL:-check all" -check noarg_temp_created -heap-arrays -fpe0)
+
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^(GNU)$")
   set(compile_flags -g -fno-second-underscore -ffree-line-length-none)
   set(compile_flags_release -O3)
   set(compile_flags_debug -Wall -fcheck=all -ffpe-trap=invalid,zero,overflow -frecursive -fbacktrace)
-  
+
   if(${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL 10)
     target_compile_options(ww3_lib PUBLIC -fallow-argument-mismatch)
   endif()
