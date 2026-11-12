@@ -67,9 +67,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "^(Intel)$")
   endif()
 
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "IntelLLVM")
-  set(compile_flags -no-fma -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias)
+  set(compile_flags -no-fma -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -heap-arrays)
   set(compile_flags_release -O3)
-  set(compile_flags_debug -O0 "SHELL:-debug all" "SHELL:-warn all" "SHELL:-check all" -check noarg_temp_created -heap-arrays -fpe0)
+  set(compile_flags_debug -O0 "SHELL:-debug all" "SHELL:-warn all" "SHELL:-check all" -check noarg_temp_created -fpe0)
 
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^(GNU)$")
   set(compile_flags -g -fno-second-underscore -ffree-line-length-none)
