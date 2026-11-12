@@ -198,7 +198,14 @@ if("NCEP2" IN_LIST switches)
   find_package(g2 REQUIRED)
   find_package(bacio REQUIRED)
   find_package(w3emc REQUIRED)
-  target_link_libraries(ww3_lib PUBLIC g2::g2_4 bacio::bacio w3emc::w3emc_4)
+  if(TARGET bacio::bacio)
+    set(bacio_target bacio::bacio)
+  else()
+    set(bacio_target bacio::bacio_4)
+  endif()
+
+  target_link_libraries(ww3_lib PUBLIC
+    g2::g2_4 ${bacio_target} w3emc::w3emc_4)
 endif()
 
 if("TIDE" IN_LIST switches)
