@@ -7,11 +7,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  cache_key: gnu11-1
-  CC: gcc-14
-  FC: gfortran-14
-  CXX: g++-14
-
+  cache_key: gnu12-ss2.1.1-1
+  CC: gcc-12
+  FC: gfortran-12
+  CXX: g++-12
 
 # Split into a steup step, and a WW3 build step which
 # builds multiple switches in a matrix. The setup is run once and
@@ -19,22 +18,29 @@ env:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
+      - name: install-build-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-12 g++-12 gfortran-12 cmake make
+          gcc-12 --version
+          g++-12 --version
+          gfortran-12 --version
+
       - name: checkout-ww3
-        if: steps.cache-env.outputs.cache-hit != 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
             path: ww3
       # Cache spack, OASIS, and compiler
       # No way to flush Action cache, so key may have # appended
       - name: cache-env
         id: cache-env
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
-            spack
+            spack-stack
             ~/.spack
             work_oasis3-mct
           key: spack-${{ runner.os }}-${{ env.cache_key }}-${{ hashFiles('ww3/model/ci/spack_gnu.yaml') }}
@@ -44,21 +50,23 @@ jobs:
         if: steps.cache-env.outputs.cache-hit != 'true'
         run: |
           # Install NetCDF, ESMF, g2, etc using Spack
-          sudo apt install cmake
-          git clone -c feature.manyFiles=true --depth=2 --branch=spack-stack-1.9.3 https://github.com/JCSDA/spack.git
-          source spack/share/spack/setup-env.sh
+          git clone https://github.com/JCSDA/spack-stack.git spack-stack
+          git -C spack-stack checkout 32d0224a3511595bb5119101a9900206d3aea948
+          git -C spack-stack submodule update --init --recursive
+
+          source spack-stack/setup.sh
           spack env create ww3-gnu ww3/model/ci/spack_gnu.yaml
           spack env activate ww3-gnu
           spack compiler find
           spack external find cmake
-          spack add mpich@3.4.2
+          spack add "openmpi@4.1.6+fortran schedulers=none"
           spack concretize
           spack install --dirty -v
 
       - name: build-oasis
         if: steps.cache-env.outputs.cache-hit != 'true'
         run: |
-          source spack/share/spack/setup-env.sh
+          source spack-stack/setup.sh
           spack env activate ww3-gnu
           export WWATCH3_DIR=${GITHUB_WORKSPACE}/ww3/model
           export OASIS_INPUT_PATH=${GITHUB_WORKSPACE}/ww3/regtests/ww3_tp2.14/input/oasis3-mct
@@ -70,46 +78,58 @@ jobs:
 
   regtest_gnu:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: install-dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install doxygen gcovr valgrind
+          sudo apt-get install -y gcc-12 g++-12 gfortran-12 cmake make \
+            bc wget doxygen gcovr valgrind
+          gcc-12 --version
+          g++-12 --version
+          gfortran-12 --version
 
       - name: checkout-ww3
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
             path: ww3
 
       - name: cache-env
         id: cache-env
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
-            spack
+            spack-stack
             ~/.spack
             work_oasis3-mct
           key: spack-${{ runner.os }}-${{ env.cache_key }}-${{ hashFiles('ww3/model/ci/spack_gnu.yaml') }}
 
+      - name: cache-data
+        id: cache-data
+        uses: actions/cache@v5
+        with:
+          path: ww3/ww3_from_ftp.v7.14.2.tar.gz
+          key: ww3_from_ftp.v7.14.2
+
       - name: build-ww3
         run: |
-          source spack/share/spack/setup-env.sh
+          source spack-stack/setup.sh
           spack env activate ww3-gnu
           set -x
           cd ww3
           export CC=mpicc
-          export FC=mpif90
+          export CXX=mpic++
+          export FC=mpifort
           export OASISDIR=${GITHUB_WORKSPACE}/work_oasis3-mct
           # mkdir build && cd build
-          export LD_LIBRARY_PATH="/home/runner/work/WW3/WW3/spack/var/spack/environments/ww3-gnu/.spack-env/view/:$LD_LIBRARY_PATH"
           # cmake -DSWITCH=${GITHUB_WORKSPACE}/ww3/regtests/unittests/data/switch.io -DCMAKE_BUILD_TYPE=Debug ..
           # make -j2 VERBOSE=1
           cd ${GITHUB_WORKSPACE}/ww3
           ls -l
           ${GITHUB_WORKSPACE}/ww3/model/bin/ww3_from_ftp.sh -k
           cd regtests
+          export OMPI_MCA_rmaps_base_oversubscribe=1
           ./bin/run_cmake_test -o all -S -T -s PR1_MPI -w work_PR1_MPI -f -p mpirun -n 24 ../model ww3_tp2.5
           cd ww3_tp2.5
           ls -l
@@ -121,10 +141,3 @@ jobs:
           # pwd
           # cat ${GITHUB_WORKSPACE}/ww3/regtests/ww3_tp2.5/out_pnt_ncdump.txt
           # cmp ${GITHUB_WORKSPACE}/ww3/regtests/ww3_tp2.5/out_pnt_ncdump.txt ncdump_out.txt
-
-      - name: cache-data
-        id: cache-data
-        uses: actions/cache@v3
-        with:
-          path: ww3/ww3_from_ftp.v7.14.2.tar.gz
-          key: ww3_from_ftp.v7.14.2
