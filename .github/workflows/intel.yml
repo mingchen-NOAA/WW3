@@ -13,7 +13,7 @@ concurrency:
 
 # Use Intel LLVM compilers and configure Intel MPI wrappers.
 env:
-  cache_key: oneapi2025.3-ss2.1.1-1
+  cache_key: oneapi2025.3-ss2.1.1-2
   CC: icx
   FC: ifx
   CXX: icpx
@@ -35,6 +35,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ cmake make python3-venv
+
+      - name: isolate-android-sdk
+        run: |
+          if [ -d /usr/local/lib/android ]; then
+            sudo mv /usr/local/lib/android \
+              "$RUNNER_TEMP/unused-android-sdk"
+          fi
 
       - name: checkout-ww3
         uses: actions/checkout@v5
@@ -144,6 +151,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ cmake make python3-venv
+
+      - name: isolate-android-sdk
+        run: |
+          if [ -d /usr/local/lib/android ]; then
+            sudo mv /usr/local/lib/android \
+              "$RUNNER_TEMP/unused-android-sdk"
+          fi
 
       - name: checkout-ww3
         uses: actions/checkout@v5
