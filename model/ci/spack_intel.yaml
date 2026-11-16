@@ -6,6 +6,9 @@ spack:
       target: [x86_64_v3]
       providers:
         mpi: [intel-oneapi-mpi]
+    bison:
+      require:
+      - "%gcc"
     intel-oneapi-compilers:
       buildable: false
     intel-oneapi-mpi:
