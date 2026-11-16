@@ -11,14 +11,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# Set I_MPI_CC/F90 so Intel MPI wrapper uses icc/ifort instead of gcc/gfortran
+# Use Intel LLVM compilers and configure Intel MPI wrappers.
 env:
-  cache_key: intel10-3
-  CC: icc
-  FC: ifort
-  CXX: icpc
-  I_MPI_CC: icc
-  I_MPI_F90: ifort
+  cache_key: oneapi2025.3-ss2.1.1-1
+  CC: icx
+  FC: ifx
+  CXX: icpx
+  I_MPI_CC: icx
+  I_MPI_CXX: icpx
+  I_MPI_FC: ifx
 
 # Split into a dependency build step, and a WW3 build step which
 # builds multiple switches in a matrix. The setup is run once and
@@ -26,13 +27,17 @@ env:
 
 jobs:
   setup:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
 
+      - name: install-build-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ cmake make python3-venv
+
       - name: checkout-ww3
-        if: steps.cache-env.outputs.cache-hit != 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
             path: ww3
 
@@ -40,10 +45,10 @@ jobs:
       # No way to flush Action cache, so key may have # appended
       - name: cache-env
         id: cache-env
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
-            spack
+            spack-stack
             ~/.spack
             work_oasis3-mct
             /opt/intel
@@ -52,38 +57,72 @@ jobs:
       - name: install-intel-compilers
         if: steps.cache-env.outputs.cache-hit != 'true'
         run: |
-          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-          sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-          echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           sudo apt-get update
-          sudo apt-get install intel-oneapi-dev-utilities intel-oneapi-mpi-devel intel-oneapi-compiler-fortran-2023.2.1 intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic-2023.2.1 intel-oneapi-openmp
+          sudo apt-get install -y ca-certificates curl gnupg
+
+          curl -fsSL \
+            https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            -o /tmp/oneapi-key.pub
+
+          gpg --batch --yes --dearmor \
+            --output /tmp/oneapi-keyring.gpg /tmp/oneapi-key.pub
+
+          sudo install -m 644 /tmp/oneapi-keyring.gpg \
+            /usr/share/keyrings/oneapi-archive-keyring.gpg
+
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            intel-oneapi-compiler-dpcpp-cpp-2025.3 \
+            intel-oneapi-compiler-fortran-2025.3 \
+            intel-oneapi-mpi-devel-2021.17
+
+          source /opt/intel/oneapi/setvars.sh
+          icx --version
+          icpx --version
+          ifx --version
+          mpiicx -show
+          mpiifx -show
 
       # Build WW3 spack environment
       - name: install-dependencies-with-spack
         if: steps.cache-env.outputs.cache-hit != 'true'
         run: |
-          sudo mv /usr/local /usr/local_mv
           # Install NetCDF, ESMF, g2, etc using Spack
-          . /opt/intel/oneapi/setvars.sh
-          git clone -c feature.manyFiles=true --depth=2 --branch=spack-stack-1.9.3 https://github.com/JCSDA/spack.git
-          source spack/share/spack/setup-env.sh
-          ln -s $(realpath $(which gcc)) spack/lib/spack/env/intel/gcc # spack/make bug in ESMF
+          source /opt/intel/oneapi/setvars.sh
+
+          git clone https://github.com/JCSDA/spack-stack.git spack-stack
+          git -C spack-stack checkout 32d0224a3511595bb5119101a9900206d3aea948
+          git -C spack-stack submodule update --init --recursive
+          source spack-stack/setup.sh
+
           spack env create ww3-intel ww3/model/ci/spack_intel.yaml
           spack env activate ww3-intel
+
+          # Register the installed compilers and system CMake.
           spack compiler find
-          sudo apt install cmake
-          spack external find
+          spack external find cmake
+
+          # Register the Intel MPI installation provided by APT.
+          test -x /opt/intel/oneapi/mpi/2021.17/bin/mpiicx
+          test -x /opt/intel/oneapi/mpi/2021.17/bin/mpiifx
+          spack python -c "import spack.config; spack.config.set('packages:intel-oneapi-mpi:externals', [{'spec': 'intel-oneapi-mpi@2021.17', 'prefix': '/opt/intel/oneapi'}], scope='env:ww3-intel')"
+
+          # Require Intel MPI for all MPI dependencies.
           spack config add "packages:mpi:require:'intel-oneapi-mpi'"
-          spack config add "packages:all:require:['%intel']"
+
+          spack compilers
+          spack config get packages
           spack concretize
-          spack install --dirty -v --fail-fast
-          spack clean --all
+          spack install --dirty --fail-fast
 
       - name: build-oasis
         if: steps.cache-env.outputs.cache-hit != 'true'
         run: |
-          . /opt/intel/oneapi/setvars.sh
-          source spack/share/spack/setup-env.sh
+          source /opt/intel/oneapi/setvars.sh
+          source spack-stack/setup.sh
           spack env activate ww3-intel
           export WWATCH3_DIR=${GITHUB_WORKSPACE}/ww3/model
           export OASIS_INPUT_PATH=${GITHUB_WORKSPACE}/ww3/regtests/ww3_tp2.14/input/oasis3-mct
@@ -98,20 +137,25 @@ jobs:
     strategy:
       matrix:
         switch: [Ifremer1, NCEP_st2, NCEP_st4, ite_pdlib, NCEP_st4sbs, NCEP_glwu, OASACM, UKMO, MULTI_ESMF]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
+      - name: install-build-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ cmake make python3-venv
+
       - name: checkout-ww3
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
             path: ww3
 
       - name: cache-env
         id: cache-env
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
-            spack
+            spack-stack
             ~/.spack
             work_oasis3-mct
             /opt/intel
@@ -119,14 +163,13 @@ jobs:
 
       - name: build-ww3
         run: |
-          sudo mv /usr/local /usr/local_mv
-          sudo apt install cmake
-          . /opt/intel/oneapi/setvars.sh
-          source spack/share/spack/setup-env.sh
+          source /opt/intel/oneapi/setvars.sh
+          source spack-stack/setup.sh
           spack env activate ww3-intel
           cd ww3
-          export CC=mpiicc
-          export FC=mpiifort
+          export CC=mpiicx
+          export CXX=mpiicpx
+          export FC=mpiifx
           export OASISDIR=${GITHUB_WORKSPACE}/work_oasis3-mct
           mkdir build && cd build
           if [[ ${{ matrix.switch }} == "MULTI_ESMF" ]]; then
