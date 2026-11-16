@@ -1,25 +1,33 @@
 spack:
   packages:
     all:
-      compiler: [intel]
+      require:
+      - "%intel-oneapi-compilers@2025.3"
       target: [x86_64_v3]
       providers:
         mpi: [intel-oneapi-mpi]
+    intel-oneapi-compilers:
+      buildable: false
+    intel-oneapi-mpi:
+      buildable: false
     python:
       require: "@3.11"
   specs:
   - netcdf-c@4.9.2~dap
   - netcdf-fortran@4.6.1
-  - bacio@2.4.1
-  - g2@3.4.5
+  - hdf5@1.14.5
+  - zlib@1.2.13
+  - libpng@1.6.37
+  - bacio@2.6.0
+  - g2@3.5.1
   - metis@5.1.0~shared
   - parmetis@4.0.3~shared
-  - scotch@7.0.1+mpi+metis~shared
-  - jasper@2.0.32
-  - w3emc@2.9.2
-  - parallelio@2.5.9+fortran~pnetcdf
-  - esmf@8.4.2~debug~xerces+external-parallelio
-  - intel-oneapi-mpi %intel
+  - scotch@7.0.10+mpi+metis~shared
+  - jasper@4.2.4
+  - w3emc@2.13.0
+  - parallelio@2.5.10+fortran~pnetcdf
+  - esmf@8.8.0~debug~xerces+external-parallelio
+  - intel-oneapi-mpi@2021.17
   view: true
   concretizer:
     unify: when_possible
