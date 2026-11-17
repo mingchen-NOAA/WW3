@@ -1539,6 +1539,7 @@ CONTAINS
 #endif
 #ifdef W3_ST4
     USE W3SRC4MD, ONLY : W3SPR4, W3SIN4, W3SDS4
+    USE W3GDATMD, ONLY : FFXFM, FFXPM
 #endif
 #ifdef W3_ST6
     USE W3SRC6MD
@@ -2382,6 +2383,9 @@ CONTAINS
             FHIGH  = XFC * FPI
 #endif
             !
+#ifdef W3_ST4
+            FHIGH = MAX(FFXFM * MAX(FMEAN1,FMEANWS), FFXPM / USTAR)
+#endif
             IF ( FLSRCE(2) ) THEN
 #ifdef W3_LN1
               CALL W3SLN1 (WN, FHIGH, USTAR, UDIRR, XLN )
